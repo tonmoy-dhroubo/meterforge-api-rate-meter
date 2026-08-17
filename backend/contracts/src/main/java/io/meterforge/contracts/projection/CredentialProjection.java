@@ -8,6 +8,7 @@ import java.util.UUID;
 public record CredentialProjection(
         UUID credentialId,
         UUID workspaceId,
+        UUID consumerId,
         UUID applicationId,
         String publicId,
         String secretHmac,
@@ -17,3 +18,4 @@ public record CredentialProjection(
         Instant revokedAt,
         long version
 ) {}
+

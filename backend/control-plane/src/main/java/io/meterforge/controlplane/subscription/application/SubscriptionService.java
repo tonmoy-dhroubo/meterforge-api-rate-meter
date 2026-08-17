@@ -81,6 +81,7 @@ public class SubscriptionService {
         SubscriptionConfigurationChangedV1 payload = new SubscriptionConfigurationChangedV1(
                 subscription.getId(),
                 subscription.getWorkspaceId(),
+                app.getConsumerId(),
                 subscription.getApplicationId(),
                 subscription.getProductId(),
                 subscription.getPlanId(),
@@ -118,12 +119,16 @@ public class SubscriptionService {
     @Transactional
     public Subscription cancelSubscription(UUID workspaceId, UUID userId, UUID subscriptionId) {
         Subscription subscription = getSubscription(workspaceId, subscriptionId);
+        ConsumerApplication app = applicationRepository.findByIdAndWorkspaceId(subscription.getApplicationId(), workspaceId)
+                .orElse(null);
+        UUID consumerId = app != null ? app.getConsumerId() : null;
         subscription.cancel();
         subscription = subscriptionRepository.save(subscription);
 
         SubscriptionConfigurationChangedV1 payload = new SubscriptionConfigurationChangedV1(
                 subscription.getId(),
                 subscription.getWorkspaceId(),
+                consumerId,
                 subscription.getApplicationId(),
                 subscription.getProductId(),
                 subscription.getPlanId(),

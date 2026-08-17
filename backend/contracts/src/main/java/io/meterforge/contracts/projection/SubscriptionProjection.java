@@ -9,6 +9,7 @@ import java.util.UUID;
 public record SubscriptionProjection(
         UUID subscriptionId,
         UUID workspaceId,
+        UUID consumerId,
         UUID applicationId,
         UUID productId,
         UUID planId,
@@ -18,3 +19,4 @@ public record SubscriptionProjection(
         Instant effectiveTo,
         long version
 ) {}
+

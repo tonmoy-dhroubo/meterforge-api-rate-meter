@@ -64,6 +64,7 @@ public class SubscriptionResolver {
                         return new SubscriptionProjection(
                                 sub.subscriptionId(),
                                 sub.workspaceId(),
+                                sub.consumerId(),
                                 sub.applicationId(),
                                 sub.productId(),
                                 sub.planId(),

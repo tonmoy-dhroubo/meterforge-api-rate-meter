@@ -153,27 +153,31 @@ class GatewayLimiterIntegrationTests {
 
         // 1. Project Credential
         CredentialProjection credProj = new CredentialProjection(
-                credId, workspaceId, appId, publicId, secretHmac, "dev", ResourceStatus.ACTIVE, null, null, 1L
+                credId, workspaceId, consumerId, appId, publicId, secretHmac, "dev", ResourceStatus.ACTIVE, null, null, 1L
         );
         redisTemplate.opsForValue().set("rf:v1:cfg:credential:" + publicId, objectMapper.writeValueAsString(credProj)).block();
 
         // 2. Project Product & Route
-        RouteProjection routeProj = new RouteProjection(
+        RouteProjection getRoute = new RouteProjection(
                 routeId, "GET", "/v1/forecast/{city}", null, 1, 100, ResourceStatus.ACTIVE, 1L
+        );
+        RouteProjection postRoute = new RouteProjection(
+                UUID.randomUUID(), "POST", "/v1/forecast/feedback", null, 1, 100, ResourceStatus.ACTIVE, 1L
         );
         ProductProjection prodProj = new ProductProjection(
                 productId, workspaceId, "Weather API", "weather-api",
                 "http://localhost:" + wireMockServer.port(), "/v1/forecast",
-                ResourceStatus.ACTIVE, List.of(routeProj), 1L
+                ResourceStatus.ACTIVE, List.of(getRoute, postRoute), 1L
         );
         redisTemplate.opsForValue().set("rf:v1:cfg:product:" + productId, objectMapper.writeValueAsString(prodProj)).block();
+        redisTemplate.opsForSet().add("rf:v1:cfg:products", productId.toString()).block();
 
         // 3. Project Policy & Subscription
         PolicyProjection ratePolicy = new PolicyProjection(
                 ratePolicyId, null, LimitPolicyKind.RATE, 5, 5, 10, null, null, true
         );
         SubscriptionProjection subProj = new SubscriptionProjection(
-                subId, workspaceId, appId, productId, planId, ResourceStatus.ACTIVE, List.of(ratePolicy), null, null, 1L
+                subId, workspaceId, consumerId, appId, productId, planId, ResourceStatus.ACTIVE, List.of(ratePolicy), null, null, 1L
         );
         redisTemplate.opsForValue().set("rf:v1:cfg:subscription:" + subId, objectMapper.writeValueAsString(subProj)).block();
         redisTemplate.opsForValue().set("rf:v1:cfg:app-sub:" + appId + ":" + productId, subId.toString()).block();
@@ -184,6 +188,12 @@ class GatewayLimiterIntegrationTests {
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("{\"city\":\"tokyo\",\"temperature\":22}")));
+
+        wireMockServer.stubFor(post(urlEqualTo("/v1/forecast/feedback"))
+                .willReturn(aResponse()
+                        .withStatus(201)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"status\":\"received\"}")));
     }
 
     @Test
@@ -205,6 +215,27 @@ class GatewayLimiterIntegrationTests {
         wireMockServer.verify(getRequestedFor(urlEqualTo("/v1/forecast/tokyo"))
                 .withoutHeader("X-API-Key")
                 .withHeader("X-Request-ID", matching(".+")));
+    }
+
+    @Test
+    @DisplayName("POST request body is correctly forwarded to upstream WireMock")
+    void testPostBodyForwardedToUpstream() {
+        String requestBody = "{\"feedback\":\"Great weather data\",\"rating\":5}";
+
+        webTestClient.post()
+                .uri("/v1/forecast/feedback")
+                .header("X-API-Key", fullApiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("received");
+
+        // Verify WireMock received the exact JSON body
+        wireMockServer.verify(postRequestedFor(urlEqualTo("/v1/forecast/feedback"))
+                .withRequestBody(equalToJson(requestBody))
+                .withoutHeader("X-API-Key"));
     }
 
     @Test
@@ -268,7 +299,7 @@ class GatewayLimiterIntegrationTests {
 
         // 3. Revoked key in Redis (status = DISABLED or revokedAt set)
         CredentialProjection revoked = new CredentialProjection(
-                credId, workspaceId, appId, publicId, secretHmac, "dev", ResourceStatus.DISABLED, null, Instant.now(), 2L
+                credId, workspaceId, consumerId, appId, publicId, secretHmac, "dev", ResourceStatus.DISABLED, null, Instant.now(), 2L
         );
         redisTemplate.opsForValue().set("rf:v1:cfg:credential:" + publicId, objectMapper.writeValueAsString(revoked)).block();
         apiKeyAuthenticator.clearCache();
@@ -290,7 +321,7 @@ class GatewayLimiterIntegrationTests {
                 quotaPolicyId, null, LimitPolicyKind.QUOTA, null, null, null, 2L, QuotaPeriod.DAY, true
         );
         SubscriptionProjection quotaSub = new SubscriptionProjection(
-                quotaSubId, workspaceId, appId, productId, planId, ResourceStatus.ACTIVE, List.of(quotaPolicy), null, null, 1L
+                quotaSubId, workspaceId, consumerId, appId, productId, planId, ResourceStatus.ACTIVE, List.of(quotaPolicy), null, null, 1L
         );
         redisTemplate.opsForValue().set("rf:v1:cfg:subscription:" + quotaSubId, objectMapper.writeValueAsString(quotaSub)).block();
         redisTemplate.opsForValue().set("rf:v1:cfg:app-sub:" + appId + ":" + productId, quotaSubId.toString()).block();

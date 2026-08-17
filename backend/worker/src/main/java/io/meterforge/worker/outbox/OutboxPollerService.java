@@ -12,8 +12,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -60,6 +62,8 @@ public class OutboxPollerService {
             List<OutboxRecord> records = fetchUnpublishedRecords();
             if (records.isEmpty()) return;
 
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+
             for (OutboxRecord record : records) {
                 try {
                     Object payloadObj = objectMapper.readTree(record.payloadJson());
@@ -76,17 +80,30 @@ public class OutboxPollerService {
                     );
 
                     String envelopeJson = objectMapper.writeValueAsString(envelope);
-                    kafkaTemplate.send(configTopic, record.aggregateId().toString(), envelopeJson)
-                            .get(5, TimeUnit.SECONDS);
+                    CompletableFuture<Void> future = kafkaTemplate.send(configTopic, record.aggregateId().toString(), envelopeJson)
+                            .thenAccept(result -> {
+                                markPublished(record.id());
+                                log.debug("Published outbox event {} for aggregate {} (version {})",
+                                        record.eventId(), record.aggregateId(), record.aggregateVersion());
+                            })
+                            .exceptionally(ex -> {
+                                log.error("Failed to publish outbox event {} of type {}: {}",
+                                        record.eventId(), record.eventType(), ex.getMessage());
+                                incrementAttempt(record.id());
+                                return null;
+                            });
 
-                    markPublished(record.id());
-                    log.debug("Published outbox event {} for aggregate {} (version {})",
-                            record.eventId(), record.aggregateId(), record.aggregateVersion());
+                    futures.add(future);
                 } catch (Exception e) {
-                    log.error("Failed to publish outbox event {} of type {}: {}",
+                    log.error("Failed to process outbox event {} of type {}: {}",
                             record.eventId(), record.eventType(), e.getMessage());
                     incrementAttempt(record.id());
                 }
+            }
+
+            if (!futures.isEmpty()) {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                        .get(10, TimeUnit.SECONDS);
             }
         } catch (Exception e) {
             log.error("Error during outbox polling loop: {}", e.getMessage());
@@ -95,7 +112,7 @@ public class OutboxPollerService {
 
     private List<OutboxRecord> fetchUnpublishedRecords() {
         String sql = "SELECT id, event_id, workspace_id, aggregate_type, aggregate_id, aggregate_version, event_type, schema_version, payload, occurred_at " +
-                "FROM meterforge.outbox_events WHERE published_at IS NULL ORDER BY occurred_at ASC LIMIT ?";
+                "FROM meterforge.outbox_events WHERE published_at IS NULL AND attempt_count < 10 ORDER BY occurred_at ASC LIMIT ?";
 
         return jdbcTemplate.query(sql, (rs, rowNum) -> new OutboxRecord(
                 rs.getObject("id", UUID.class),

@@ -8,6 +8,7 @@ import java.util.UUID;
 public record CredentialConfigurationChangedV1(
         UUID credentialId,
         UUID workspaceId,
+        UUID consumerId,
         UUID applicationId,
         String publicId,
         String secretHmac,
@@ -20,3 +21,4 @@ public record CredentialConfigurationChangedV1(
         long version,
         Instant updatedAt
 ) {}
+

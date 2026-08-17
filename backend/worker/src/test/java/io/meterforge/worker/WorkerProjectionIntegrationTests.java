@@ -97,6 +97,7 @@ class WorkerProjectionIntegrationTests {
     @DisplayName("Outbox event is polled, published to Kafka, and projected to Redis with version guard")
     void testOutboxToRedisProjectionFlow() throws Exception {
         UUID workspaceId = UUID.randomUUID();
+        UUID consumerId = UUID.randomUUID();
         UUID appId = UUID.randomUUID();
         UUID credId = UUID.randomUUID();
         String publicId = "pub_" + UUID.randomUUID().toString().substring(0, 8);
@@ -104,6 +105,7 @@ class WorkerProjectionIntegrationTests {
         CredentialConfigurationChangedV1 payload = new CredentialConfigurationChangedV1(
                 credId,
                 workspaceId,
+                consumerId,
                 appId,
                 publicId,
                 "hmac_hash_test_123456",
@@ -156,6 +158,7 @@ class WorkerProjectionIntegrationTests {
         CredentialConfigurationChangedV1 stalePayload = new CredentialConfigurationChangedV1(
                 credId,
                 workspaceId,
+                consumerId,
                 appId,
                 publicId,
                 "STALE_HMAC",

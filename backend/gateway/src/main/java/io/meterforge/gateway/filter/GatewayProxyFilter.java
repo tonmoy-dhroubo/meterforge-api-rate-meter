@@ -26,7 +26,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.BodyInserters;
-import org.springframework.web.reactive.function.client.ClientResponse;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -124,7 +124,7 @@ public class GatewayProxyFilter implements WebFilter {
         // 2. Match Route
         return routeMatcher.match(request)
                 .switchIfEmpty(Mono.defer(() -> {
-                    emitUsage(requestId, credential.workspaceId(), null, null, null,
+                    emitUsage(requestId, credential.workspaceId(), null, null, credential.consumerId(),
                             credential.applicationId(), credential.credentialId(), null,
                             method, path,
                             UsageDecision.NOT_FOUND, UsageOutcome.NOT_FORWARDED,
@@ -140,7 +140,7 @@ public class GatewayProxyFilter implements WebFilter {
                     return subscriptionResolver.resolve(credential.applicationId(), productId)
                             .switchIfEmpty(Mono.defer(() -> {
                                 emitUsage(requestId, credential.workspaceId(), productId, matchedRoute.route().routeId(),
-                                        null, credential.applicationId(), credential.credentialId(), null,
+                                        credential.consumerId(), credential.applicationId(), credential.credentialId(), null,
                                         method, matchedRoute.route().pathPattern(),
                                         UsageDecision.BLOCKED, UsageOutcome.NOT_FORWARDED,
                                         HttpStatus.FORBIDDEN.value(), 0, 0, null);
@@ -175,7 +175,7 @@ public class GatewayProxyFilter implements WebFilter {
                     if (!decision.allowed()) {
                         // Rate Limited (429)
                         emitUsage(requestId, credential.workspaceId(), matchedRoute.product().productId(),
-                                routeId, null, credential.applicationId(), credential.credentialId(),
+                                routeId, credential.consumerId(), credential.applicationId(), credential.credentialId(),
                                 subscription.subscriptionId(), method, routeTemplate,
                                 UsageDecision.RATE_LIMITED, UsageOutcome.NOT_FORWARDED,
                                 HttpStatus.TOO_MANY_REQUESTS.value(), 0, 0, decision.limitingPolicyId());
@@ -193,6 +193,18 @@ public class GatewayProxyFilter implements WebFilter {
 
                     // 5. Allowed -> Proxy Upstream
                     return proxyUpstream(exchange, request, credential, matchedRoute, subscription, decision, requestId, startNs);
+                })
+                .onErrorResume(e -> {
+                    log.error("Limiter failure / Redis unavailable for request {}: {}", requestId, e.getMessage(), e);
+                    emitUsage(requestId, credential.workspaceId(), matchedRoute.product().productId(),
+                            routeId, credential.consumerId(), credential.applicationId(), credential.credentialId(),
+                            subscription.subscriptionId(), method, routeTemplate,
+                            UsageDecision.BLOCKED, UsageOutcome.UNAVAILABLE,
+                            HttpStatus.SERVICE_UNAVAILABLE.value(), 0, 0, null);
+
+                    return sendProblemResponse(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                            "Service Unavailable", "Rate limiter service is temporarily unavailable",
+                            "LIMITER_UNAVAILABLE", requestId);
                 });
     }
 
@@ -218,18 +230,19 @@ public class GatewayProxyFilter implements WebFilter {
                 .uri(URI.create(targetUrl))
                 .headers(headers -> copySafeHeaders(request.getHeaders(), headers, requestId));
 
+        WebClient.RequestHeadersSpec<?> headersSpec = clientReq;
         if (httpMethod == HttpMethod.POST || httpMethod == HttpMethod.PUT || httpMethod == HttpMethod.PATCH) {
-            clientReq.body(BodyInserters.fromDataBuffers(request.getBody()));
+            headersSpec = clientReq.body(BodyInserters.fromDataBuffers(request.getBody()));
         }
 
-        return clientReq.exchangeToMono(clientResponse -> {
+        return headersSpec.exchangeToMono(clientResponse -> {
             long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
             int statusCode = clientResponse.statusCode().value();
             UsageOutcome outcome = statusCode >= 500 ? UsageOutcome.SERVER_ERROR
                     : (statusCode >= 400 ? UsageOutcome.CLIENT_ERROR : UsageOutcome.SUCCESS);
 
             emitUsage(requestId, credential.workspaceId(), matchedRoute.product().productId(),
-                    matchedRoute.route().routeId(), null, credential.applicationId(),
+                    matchedRoute.route().routeId(), credential.consumerId(), credential.applicationId(),
                     credential.credentialId(), subscription.subscriptionId(),
                     request.getMethod().name(), matchedRoute.route().pathPattern(),
                     UsageDecision.ALLOWED, outcome, statusCode, matchedRoute.costUnits(),
@@ -239,8 +252,12 @@ public class GatewayProxyFilter implements WebFilter {
             response.setStatusCode(clientResponse.statusCode());
             copyResponseHeaders(clientResponse.headers().asHttpHeaders(), response.getHeaders());
 
-            response.getHeaders().add("X-RateLimit-Remaining", String.valueOf(decision.remaining()));
-            response.getHeaders().add("X-RateLimit-Reset", String.valueOf(decision.resetAfterSeconds()));
+            if (decision.remaining() >= 0) {
+                response.getHeaders().add("X-RateLimit-Remaining", String.valueOf(decision.remaining()));
+            }
+            if (decision.resetAfterSeconds() > 0) {
+                response.getHeaders().add("X-RateLimit-Reset", String.valueOf(decision.resetAfterSeconds()));
+            }
             response.getHeaders().add("X-Request-ID", requestId);
 
             return response.writeWith(clientResponse.bodyToFlux(DataBuffer.class));
@@ -256,7 +273,7 @@ public class GatewayProxyFilter implements WebFilter {
             }
 
             emitUsage(requestId, credential.workspaceId(), matchedRoute.product().productId(),
-                    matchedRoute.route().routeId(), null, credential.applicationId(),
+                    matchedRoute.route().routeId(), credential.consumerId(), credential.applicationId(),
                     credential.credentialId(), subscription.subscriptionId(),
                     request.getMethod().name(), matchedRoute.route().pathPattern(),
                     UsageDecision.ALLOWED, outcome, errorStatus.value(),
@@ -319,7 +336,7 @@ public class GatewayProxyFilter implements WebFilter {
 
     private String resolveRequestId(ServerHttpRequest request) {
         String reqId = request.getHeaders().getFirst("X-Request-ID");
-        if (reqId != null && !reqId.isBlank()) {
+        if (reqId != null && !reqId.isBlank() && reqId.length() <= 64 && reqId.matches("^[a-zA-Z0-9_-]+$")) {
             return reqId.trim();
         }
         return UUID.randomUUID().toString();
@@ -344,23 +361,23 @@ public class GatewayProxyFilter implements WebFilter {
             UUID limitingPolicyId) {
 
         UsageRecordedV1 event = UsageRecordedV1.create(
-                requestId,
-                workspaceId,
-                productId,
-                routeId,
-                consumerId,
-                consumerApplicationId,
-                credentialId,
-                subscriptionId,
-                method,
-                routeTemplate,
-                decision,
-                outcome,
-                statusCode,
-                usageUnits,
-                latencyMs,
-                limitingPolicyId,
-                properties.getInstanceId()
+            requestId,
+            workspaceId,
+            productId,
+            routeId,
+            consumerId,
+            consumerApplicationId,
+            credentialId,
+            subscriptionId,
+            method,
+            routeTemplate,
+            decision,
+            outcome,
+            statusCode,
+            usageUnits,
+            latencyMs,
+            limitingPolicyId,
+            properties.getInstanceId()
         );
 
         usagePublisher.publish(event);

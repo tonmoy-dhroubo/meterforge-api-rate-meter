@@ -2,6 +2,7 @@ package io.meterforge.worker.configprojection;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.meterforge.contracts.common.ResourceStatus;
 import io.meterforge.contracts.event.ConfigEventEnvelope;
 import io.meterforge.contracts.event.CredentialConfigurationChangedV1;
 import io.meterforge.contracts.event.LimitPolicyDto;
@@ -28,6 +29,7 @@ import java.util.List;
 public class ConfigProjectionConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ConfigProjectionConsumer.class);
+    public static final String ACTIVE_PRODUCTS_SET_KEY = "rf:v1:cfg:products";
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -70,6 +72,7 @@ public class ConfigProjectionConsumer {
                 CredentialProjection projection = new CredentialProjection(
                         credEvent.credentialId(),
                         credEvent.workspaceId(),
+                        credEvent.consumerId(),
                         credEvent.applicationId(),
                         credEvent.publicId(),
                         credEvent.secretHmac(),
@@ -81,7 +84,9 @@ public class ConfigProjectionConsumer {
                 );
                 String credKey = "rf:v1:cfg:credential:" + credEvent.publicId();
                 redisTemplate.opsForValue().set(credKey, objectMapper.writeValueAsString(projection));
+                redisTemplate.opsForValue().set(versionKey, String.valueOf(incomingVersion));
                 log.info("Projected credential {} (publicId={}) to Redis key {}", credEvent.credentialId(), credEvent.publicId(), credKey);
+
             } else if ("ProductConfigurationChangedV1".equals(eventType) || "ApiProduct".equals(aggregateType)) {
                 ProductConfigurationChangedV1 prodEvent = objectMapper.convertValue(payload, ProductConfigurationChangedV1.class);
                 String prodKey = "rf:v1:cfg:product:" + prodEvent.productId();
@@ -110,46 +115,61 @@ public class ConfigProjectionConsumer {
                         prodEvent.version()
                 );
                 redisTemplate.opsForValue().set(prodKey, objectMapper.writeValueAsString(projection));
+
+                // Maintain active products index in Redis Set
+                if (prodEvent.status() == ResourceStatus.ACTIVE) {
+                    redisTemplate.opsForSet().add(ACTIVE_PRODUCTS_SET_KEY, prodEvent.productId().toString());
+                } else {
+                    redisTemplate.opsForSet().remove(ACTIVE_PRODUCTS_SET_KEY, prodEvent.productId().toString());
+                }
+
+                redisTemplate.opsForValue().set(versionKey, String.valueOf(incomingVersion));
                 log.info("Projected product {} to Redis key {}", prodEvent.productId(), prodKey);
+
             } else if ("RouteConfigurationChangedV1".equals(eventType) || "ApiRoute".equals(aggregateType)) {
                 RouteConfigurationChangedV1 routeEvent = objectMapper.convertValue(payload, RouteConfigurationChangedV1.class);
                 String prodKey = "rf:v1:cfg:product:" + routeEvent.productId();
                 String existingProdJson = redisTemplate.opsForValue().get(prodKey);
+                ProductProjection existingProd = null;
+
                 if (existingProdJson != null) {
-                    ProductProjection existingProd = objectMapper.readValue(existingProdJson, ProductProjection.class);
-                    List<RouteProjection> routes = new ArrayList<>();
-                    if (existingProd.routes() != null) {
-                        for (RouteProjection r : existingProd.routes()) {
-                            if (!r.routeId().equals(routeEvent.routeId())) {
-                                routes.add(r);
-                            }
+                    existingProd = objectMapper.readValue(existingProdJson, ProductProjection.class);
+                }
+
+                List<RouteProjection> routes = new ArrayList<>();
+                if (existingProd != null && existingProd.routes() != null) {
+                    for (RouteProjection r : existingProd.routes()) {
+                        if (!r.routeId().equals(routeEvent.routeId())) {
+                            routes.add(r);
                         }
                     }
-                    routes.add(new RouteProjection(
-                            routeEvent.routeId(),
-                            routeEvent.httpMethod(),
-                            routeEvent.pathPattern(),
-                            routeEvent.upstreamPath(),
-                            routeEvent.costUnits(),
-                            routeEvent.priority(),
-                            routeEvent.status(),
-                            routeEvent.version()
-                    ));
-
-                    ProductProjection updated = new ProductProjection(
-                            existingProd.productId(),
-                            existingProd.workspaceId(),
-                            existingProd.name(),
-                            existingProd.slug(),
-                            existingProd.upstreamBaseUrl(),
-                            existingProd.gatewayBasePath(),
-                            existingProd.status(),
-                            routes,
-                            existingProd.version()
-                    );
-                    redisTemplate.opsForValue().set(prodKey, objectMapper.writeValueAsString(updated));
-                    log.info("Projected route {} into product {} in Redis", routeEvent.routeId(), routeEvent.productId());
                 }
+                routes.add(new RouteProjection(
+                        routeEvent.routeId(),
+                        routeEvent.httpMethod(),
+                        routeEvent.pathPattern(),
+                        routeEvent.upstreamPath(),
+                        routeEvent.costUnits(),
+                        routeEvent.priority(),
+                        routeEvent.status(),
+                        routeEvent.version()
+                ));
+
+                ProductProjection updated = new ProductProjection(
+                        routeEvent.productId(),
+                        routeEvent.workspaceId(),
+                        existingProd != null ? existingProd.name() : "",
+                        existingProd != null ? existingProd.slug() : "",
+                        existingProd != null ? existingProd.upstreamBaseUrl() : "",
+                        existingProd != null ? existingProd.gatewayBasePath() : "",
+                        existingProd != null ? existingProd.status() : ResourceStatus.ACTIVE,
+                        routes,
+                        existingProd != null ? existingProd.version() : 0
+                );
+                redisTemplate.opsForValue().set(prodKey, objectMapper.writeValueAsString(updated));
+                redisTemplate.opsForValue().set(versionKey, String.valueOf(incomingVersion));
+                log.info("Projected route {} into product {} in Redis", routeEvent.routeId(), routeEvent.productId());
+
             } else if ("PlanConfigurationChangedV1".equals(eventType) || "Plan".equals(aggregateType)) {
                 PlanConfigurationChangedV1 planEvent = objectMapper.convertValue(payload, PlanConfigurationChangedV1.class);
                 List<PolicyProjection> policyProjections = new ArrayList<>();
@@ -180,7 +200,9 @@ public class ConfigProjectionConsumer {
                 );
                 String planKey = "rf:v1:cfg:plan:" + planEvent.planId();
                 redisTemplate.opsForValue().set(planKey, objectMapper.writeValueAsString(planProjection));
+                redisTemplate.opsForValue().set(versionKey, String.valueOf(incomingVersion));
                 log.info("Projected plan {} to Redis key {}", planEvent.planId(), planKey);
+
             } else if ("SubscriptionConfigurationChangedV1".equals(eventType) || "Subscription".equals(aggregateType)) {
                 SubscriptionConfigurationChangedV1 subEvent = objectMapper.convertValue(payload, SubscriptionConfigurationChangedV1.class);
                 String subKey = "rf:v1:cfg:subscription:" + subEvent.subscriptionId();
@@ -202,6 +224,7 @@ public class ConfigProjectionConsumer {
                 SubscriptionProjection projection = new SubscriptionProjection(
                         subEvent.subscriptionId(),
                         subEvent.workspaceId(),
+                        subEvent.consumerId(),
                         subEvent.applicationId(),
                         subEvent.productId(),
                         subEvent.planId(),
@@ -213,11 +236,10 @@ public class ConfigProjectionConsumer {
                 );
                 redisTemplate.opsForValue().set(subKey, objectMapper.writeValueAsString(projection));
                 redisTemplate.opsForValue().set(appSubKey, subEvent.subscriptionId().toString());
+                redisTemplate.opsForValue().set(versionKey, String.valueOf(incomingVersion));
                 log.info("Projected subscription {} (app-sub={}) to Redis", subEvent.subscriptionId(), appSubKey);
             }
 
-            // Atomically update version key
-            redisTemplate.opsForValue().set(versionKey, String.valueOf(incomingVersion));
         } catch (Exception e) {
             log.error("Failed to process config projection event: {}", e.getMessage(), e);
             throw new RuntimeException(e);

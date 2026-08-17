@@ -10,7 +10,7 @@ local cost = tonumber(ARGV[1])
 local num_policies = tonumber(ARGV[2])
 
 if num_policies == 0 then
-    return {1, 999999, 0, 0, ""}
+    return {1, -1, 0, 0, ""}
 end
 
 local denied = 0

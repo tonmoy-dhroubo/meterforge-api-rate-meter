@@ -45,7 +45,7 @@ public class LuaRateLimiter {
         List<PolicyProjection> applicablePolicies = filterApplicablePolicies(subscription, routeId);
 
         if (applicablePolicies.isEmpty()) {
-            return Mono.just(RateLimitDecision.allow(999999, 0));
+            return Mono.just(RateLimitDecision.allow(-1, 0));
         }
 
         List<String> keys = new ArrayList<>();
@@ -78,12 +78,12 @@ public class LuaRateLimiter {
                     YearMonth ym = YearMonth.now(ZoneOffset.UTC);
                     windowId = ym.toString();
                     LocalDateTime endOfMonth = ym.atEndOfMonth().atTime(LocalTime.MAX);
-                    windowTtlSec = Duration.between(LocalDateTime.now(ZoneOffset.UTC), endOfMonth).getSeconds() + 86400;
+                    windowTtlSec = Duration.between(LocalDateTime.now(ZoneOffset.UTC), endOfMonth).getSeconds() + 3600;
                 } else {
                     LocalDate today = LocalDate.now(ZoneOffset.UTC);
                     windowId = today.toString();
                     LocalDateTime endOfDay = today.atTime(LocalTime.MAX);
-                    windowTtlSec = Duration.between(LocalDateTime.now(ZoneOffset.UTC), endOfDay).getSeconds() + 86400;
+                    windowTtlSec = Duration.between(LocalDateTime.now(ZoneOffset.UTC), endOfDay).getSeconds() + 3600;
                 }
 
                 String key = "rf:v1:quota:{" + subscription.subscriptionId() + "}:" + policy.policyId() + ":" + windowId;
@@ -103,8 +103,8 @@ public class LuaRateLimiter {
                 .collectList()
                 .map(results -> {
                     if (results.isEmpty() || !(results.get(0) instanceof List<?> list)) {
-                        log.warn("Empty or invalid response from rate limiter Lua script");
-                        return RateLimitDecision.deny(0, 5, 5, null);
+                        log.error("Empty or invalid response from rate limiter Lua script");
+                        throw new IllegalStateException("Empty or invalid response from rate limiter script");
                     }
 
                     long allowedVal = Long.parseLong(list.get(0).toString());
@@ -116,11 +116,6 @@ public class LuaRateLimiter {
 
                     boolean allowed = (allowedVal == 1);
                     return new RateLimitDecision(allowed, remaining, retryAfter, resetAfter, limitingPolicyId);
-                })
-                .onErrorResume(e -> {
-                    log.error("Redis rate limiter execution failure: {}", e.getMessage(), e);
-                    // Ambiguous / unavailable Redis decision -> return denial with fail-safe error
-                    return Mono.just(RateLimitDecision.deny(0, 10, 10, null));
                 });
     }
 

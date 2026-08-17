@@ -8,6 +8,7 @@ import java.util.UUID;
 public record SubscriptionConfigurationChangedV1(
         UUID subscriptionId,
         UUID workspaceId,
+        UUID consumerId,
         UUID applicationId,
         UUID productId,
         UUID planId,
@@ -17,3 +18,4 @@ public record SubscriptionConfigurationChangedV1(
         long version,
         Instant updatedAt
 ) {}
+

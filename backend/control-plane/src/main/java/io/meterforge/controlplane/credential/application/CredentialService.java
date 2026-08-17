@@ -71,6 +71,7 @@ public class CredentialService {
         CredentialConfigurationChangedV1 payload = new CredentialConfigurationChangedV1(
                 credential.getId(),
                 credential.getWorkspaceId(),
+                app.getConsumerId(),
                 credential.getApplicationId(),
                 credential.getPublicId(),
                 credential.getSecretHmac(),
@@ -111,12 +112,16 @@ public class CredentialService {
     @Transactional
     public ApiCredential revokeCredential(UUID workspaceId, UUID userId, UUID credentialId) {
         ApiCredential credential = getCredential(workspaceId, credentialId);
+        ConsumerApplication app = applicationRepository.findByIdAndWorkspaceId(credential.getApplicationId(), workspaceId)
+                .orElse(null);
+        UUID consumerId = app != null ? app.getConsumerId() : null;
         credential.revoke();
         credential = credentialRepository.save(credential);
 
         CredentialConfigurationChangedV1 payload = new CredentialConfigurationChangedV1(
                 credential.getId(),
                 credential.getWorkspaceId(),
+                consumerId,
                 credential.getApplicationId(),
                 credential.getPublicId(),
                 credential.getSecretHmac(),
