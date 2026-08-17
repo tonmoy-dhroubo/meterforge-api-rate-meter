@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/v1/forecast/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "city": "{{request.path.[2]}}",
+      "temperature": 22,
+      "unit": "celsius",
+      "condition": "partly_cloudy",
+      "humidity": 65,
+      "wind_speed_kmh": 12,
+      "forecast": "Partly cloudy with a chance of rain in the afternoon."
+    },
+    "transformers": ["response-template"]
+  }
+}
