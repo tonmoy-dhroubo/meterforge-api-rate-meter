@@ -1211,7 +1211,7 @@ Track cuts here instead of `TODO`s or extra planning files.
 
 This replaces a separate `PROGRESS.md` for now. Keep it truthful.
 
-**Current milestone:** `M3 — Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, Request Lab (Completed)`
+**Current milestone:** `All Milestones (M0 - M5) Complete — Portfolio Edition Ready`
 
 ### Completed
 
@@ -1246,14 +1246,17 @@ This replaces a separate `PROGRESS.md` for now. Keep it truthful.
   - [x] Spring Boot WebFlux + Testcontainers integration tests (`GatewayLimiterIntegrationTests`) proving 200 OK proxying, burst rate limiting (10 concurrent requests producing exactly 5 allowed + 5 429s), 401 unauthorized handling for missing/tampered/revoked keys, and daily quota allowance enforcement.
   - [x] Next.js Request Lab UI (`/[workspaceSlug]/lab`) for interactive concurrency burst execution (1, 5, 10, 20 requests), live status badges, latency metrics, refill countdown timer, and JSON inspection.
   - [x] All 5 Maven modules (`contracts`, `control-plane`, `gateway`, `worker`, root) and Next.js frontend test/build suites passing cleanly.
-
-### In progress
-
-- [ ] Milestone M4 planning & design (Usage Ingestion, Durable Postgres Aggregations, Usage Analytics API & UI).
-
-### Next
-
-- [ ] Begin Milestone M4 — Usage Ingestion, Durable Aggregations, Analytics REST API, and Usage Dashboard.
+- [x] Milestone M4 — Usage Ingestion, Durable Aggregations, Analytics REST API, Usage Dashboard complete:
+  - [x] Flyway migration `V5__m4_usage_events_and_aggregations.sql` creating `usage_events`, `usage_hourly`, and `usage_daily` tables with `UNIQUE NULLS NOT DISTINCT` composite constraints and index structures.
+  - [x] Worker Kafka Usage Ingestion Consumer (`UsageIngestionConsumer`) consuming `meterforge.usage.v1` events, persisting raw telemetry with `ON CONFLICT (event_id) DO NOTHING` idempotency, and executing atomic SQL upserts for hourly and daily aggregate rollups.
+  - [x] Control-plane Usage Analytics REST APIs (`/api/v1/workspaces/{workspaceId}/usage/...`) for summary totals, timeseries bucketing, top routes, top consumer applications, and paginated raw usage event traces.
+  - [x] Worker and Control-plane Testcontainers integration test suites (`UsageIngestionIntegrationTests`, `UsageAnalyticsIntegrationTests`) proving single and concurrent ingestion, duplicate redelivery deduplication, and workspace scoping isolation.
+  - [x] Next.js Usage & Analytics Dashboard (`/[workspaceSlug]/usage`) featuring time range filtering (1h, 24h, 7d, 30d), product & decision filters, KPI metric cards, timeseries activity visualizer, top routes/apps lists, and raw telemetry trace viewer with JSON modal inspection.
+  - [x] Next.js Workspace Overview landing page (`/[workspaceSlug]`) and enabled navigation in `sidebar.tsx`.
+- [x] Milestone M5 — Portfolio Polish, Turnkey Scripts & CI Pipeline complete:
+  - [x] Comprehensive production [README.md](file:///c:/Users/dhrubo/projects/meterforge-api-rate-meter/README.md) with Mermaid architecture diagrams, 5-minute quick start, turnkey demo walkthrough, verified distributed systems invariant explanations, and honest limitations.
+  - [x] Cross-platform burst test automation scripts in `scripts/demo_traffic.ps1` (PowerShell) and `scripts/demo_traffic.sh` (Bash).
+  - [x] Enhanced GitHub Actions CI workflow in `.github/workflows/ci.yml` running backend tests, linting, typechecking, and frontend Vitest tests.
 
 ### Known limitations
 

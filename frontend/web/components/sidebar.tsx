@@ -62,7 +62,6 @@ export function Sidebar() {
       icon: BarChart3,
       active: pathname.startsWith(`/${workspaceSlug}/usage`),
       badge: "M4",
-      disabled: true,
     },
     {
       title: "Audit Logs",

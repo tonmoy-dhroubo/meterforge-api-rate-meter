@@ -11,7 +11,7 @@ export default function RootPage() {
   useEffect(() => {
     if (!isLoading) {
       if (user && memberships.length > 0) {
-        router.push(`/${memberships[0].workspaceSlug}/products`);
+        router.push(`/${memberships[0].workspaceSlug}`);
       } else {
         router.push("/login");
       }
