@@ -4,10 +4,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.meterforge.contracts.event.ConfigEventEnvelope;
 import io.meterforge.contracts.event.CredentialConfigurationChangedV1;
+import io.meterforge.contracts.event.LimitPolicyDto;
+import io.meterforge.contracts.event.PlanConfigurationChangedV1;
 import io.meterforge.contracts.event.ProductConfigurationChangedV1;
 import io.meterforge.contracts.event.RouteConfigurationChangedV1;
 import io.meterforge.contracts.event.SubscriptionConfigurationChangedV1;
 import io.meterforge.contracts.projection.CredentialProjection;
+import io.meterforge.contracts.projection.PlanProjection;
+import io.meterforge.contracts.projection.PolicyProjection;
 import io.meterforge.contracts.projection.ProductProjection;
 import io.meterforge.contracts.projection.RouteProjection;
 import io.meterforge.contracts.projection.SubscriptionProjection;
@@ -146,9 +150,55 @@ public class ConfigProjectionConsumer {
                     redisTemplate.opsForValue().set(prodKey, objectMapper.writeValueAsString(updated));
                     log.info("Projected route {} into product {} in Redis", routeEvent.routeId(), routeEvent.productId());
                 }
+            } else if ("PlanConfigurationChangedV1".equals(eventType) || "Plan".equals(aggregateType)) {
+                PlanConfigurationChangedV1 planEvent = objectMapper.convertValue(payload, PlanConfigurationChangedV1.class);
+                List<PolicyProjection> policyProjections = new ArrayList<>();
+                if (planEvent.policies() != null) {
+                    for (LimitPolicyDto dto : planEvent.policies()) {
+                        policyProjections.add(new PolicyProjection(
+                                dto.id(),
+                                dto.routeId(),
+                                dto.kind(),
+                                dto.capacity(),
+                                dto.refillTokens(),
+                                dto.refillPeriodSeconds(),
+                                dto.quotaLimit(),
+                                dto.quotaPeriod(),
+                                dto.enabled()
+                        ));
+                    }
+                }
+                PlanProjection planProjection = new PlanProjection(
+                        planEvent.planId(),
+                        planEvent.workspaceId(),
+                        planEvent.productId(),
+                        planEvent.name(),
+                        planEvent.slug(),
+                        planEvent.status(),
+                        policyProjections,
+                        planEvent.version()
+                );
+                String planKey = "rf:v1:cfg:plan:" + planEvent.planId();
+                redisTemplate.opsForValue().set(planKey, objectMapper.writeValueAsString(planProjection));
+                log.info("Projected plan {} to Redis key {}", planEvent.planId(), planKey);
             } else if ("SubscriptionConfigurationChangedV1".equals(eventType) || "Subscription".equals(aggregateType)) {
                 SubscriptionConfigurationChangedV1 subEvent = objectMapper.convertValue(payload, SubscriptionConfigurationChangedV1.class);
                 String subKey = "rf:v1:cfg:subscription:" + subEvent.subscriptionId();
+                String appSubKey = "rf:v1:cfg:app-sub:" + subEvent.applicationId() + ":" + subEvent.productId();
+
+                // Lookup plan policies if available
+                List<PolicyProjection> policies = new ArrayList<>();
+                String planKey = "rf:v1:cfg:plan:" + subEvent.planId();
+                String planJson = redisTemplate.opsForValue().get(planKey);
+                if (planJson != null) {
+                    try {
+                        PlanProjection planProj = objectMapper.readValue(planJson, PlanProjection.class);
+                        if (planProj.policies() != null) {
+                            policies.addAll(planProj.policies());
+                        }
+                    } catch (Exception ignored) {}
+                }
+
                 SubscriptionProjection projection = new SubscriptionProjection(
                         subEvent.subscriptionId(),
                         subEvent.workspaceId(),
@@ -156,13 +206,14 @@ public class ConfigProjectionConsumer {
                         subEvent.productId(),
                         subEvent.planId(),
                         subEvent.status(),
-                        List.of(),
+                        policies,
                         subEvent.effectiveFrom(),
                         subEvent.effectiveTo(),
                         subEvent.version()
                 );
                 redisTemplate.opsForValue().set(subKey, objectMapper.writeValueAsString(projection));
-                log.info("Projected subscription {} to Redis key {}", subEvent.subscriptionId(), subKey);
+                redisTemplate.opsForValue().set(appSubKey, subEvent.subscriptionId().toString());
+                log.info("Projected subscription {} (app-sub={}) to Redis", subEvent.subscriptionId(), appSubKey);
             }
 
             // Atomically update version key

@@ -55,7 +55,6 @@ export function Sidebar() {
       icon: Zap,
       active: pathname.startsWith(`/${workspaceSlug}/lab`),
       badge: "M3",
-      disabled: true,
     },
     {
       title: "Usage & Analytics",

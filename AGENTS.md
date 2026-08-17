@@ -1211,7 +1211,7 @@ Track cuts here instead of `TODO`s or extra planning files.
 
 This replaces a separate `PROGRESS.md` for now. Keep it truthful.
 
-**Current milestone:** `M2 — Consumers, Credentials, Plans, Subscriptions, Redis Projections (Completed)`
+**Current milestone:** `M3 — Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, Request Lab (Completed)`
 
 ### Completed
 
@@ -1236,14 +1236,24 @@ This replaces a separate `PROGRESS.md` for now. Keep it truthful.
   - [x] Testcontainers integration tests covering full consumer/app lifecycle, credential issuance/rotation/revocation with HMAC verification, plan/subscription configuration, and worker outbox-to-Redis projection flow with version guard.
   - [x] Frontend Operations UI for Consumers (`/[workspaceSlug]/consumers`), Consumer details with one-time raw key reveal dialog (`/[workspaceSlug]/consumers/[consumerId]`), Plans & Limit Policies (`/[workspaceSlug]/plans`), and Subscriptions (`/[workspaceSlug]/subscriptions`).
   - [x] Vitest tests, TypeScript validation (`tsc --noEmit`), and Next.js production build passing with 0 errors.
+- [x] Milestone M3 — Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, Request Lab complete:
+  - [x] Shared contracts (`UsageRecordedV1`, `UsageDecision`, `UsageOutcome`, `PlanProjection`).
+  - [x] Atomic multi-policy Rate and Quota limiter script in Redis Lua (`rate_limiter.lua`) evaluating all token bucket and fixed-window quota policies atomically in a single Redis invocation using Redis `TIME`. Zero counter mutation on rejection.
+  - [x] Reactive WebFlux Gateway (`ApiKeyAuthenticator`, `ProductRouteMatcher`, `SubscriptionResolver`, `LuaRateLimiter`, `ProxyHttpClient`, `GatewayProxyFilter`, `UsageEventPublisher`).
+  - [x] Pure non-blocking architecture: Gateway has zero PostgreSQL dependencies/credentials and operates entirely against Redis projections and Kafka.
+  - [x] Strips `X-API-Key` and hop-by-hop headers before upstream forwarding to WireMock/target services.
+  - [x] Emits usage events (`UsageRecordedV1`) to Kafka `meterforge.usage.v1` for all decisions (`ALLOWED`, `RATE_LIMITED`, `UNAUTHORIZED`, `BLOCKED`, `NOT_FOUND`).
+  - [x] Spring Boot WebFlux + Testcontainers integration tests (`GatewayLimiterIntegrationTests`) proving 200 OK proxying, burst rate limiting (10 concurrent requests producing exactly 5 allowed + 5 429s), 401 unauthorized handling for missing/tampered/revoked keys, and daily quota allowance enforcement.
+  - [x] Next.js Request Lab UI (`/[workspaceSlug]/lab`) for interactive concurrency burst execution (1, 5, 10, 20 requests), live status badges, latency metrics, refill countdown timer, and JSON inspection.
+  - [x] All 5 Maven modules (`contracts`, `control-plane`, `gateway`, `worker`, root) and Next.js frontend test/build suites passing cleanly.
 
 ### In progress
 
-- [ ] Milestone M3 planning & design (Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, Request Lab).
+- [ ] Milestone M4 planning & design (Usage Ingestion, Durable Postgres Aggregations, Usage Analytics API & UI).
 
 ### Next
 
-- [ ] Begin Milestone M3 — Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, and Request Lab.
+- [ ] Begin Milestone M4 — Usage Ingestion, Durable Aggregations, Analytics REST API, and Usage Dashboard.
 
 ### Known limitations
 
