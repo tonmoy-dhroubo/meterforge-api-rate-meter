@@ -1211,7 +1211,7 @@ Track cuts here instead of `TODO`s or extra planning files.
 
 This replaces a separate `PROGRESS.md` for now. Keep it truthful.
 
-**Current milestone:** `M1 — Auth, Workspace, Products, Routes (Completed)`
+**Current milestone:** `M2 — Consumers, Credentials, Plans, Subscriptions, Redis Projections (Completed)`
 
 ### Completed
 
@@ -1225,26 +1225,28 @@ This replaces a separate `PROGRESS.md` for now. Keep it truthful.
   - [x] Route ambiguity detection engine rejecting structurally equivalent route paths at configuration time.
   - [x] Transactional Outbox pattern: entity mutations, audit logs, and versioned `ConfigEventEnvelope` outbox rows commit in the exact same DB transaction.
   - [x] Full Spring Boot Testcontainers test suite with 13 tests covering Auth, RBAC, Product/Route lifecycle, route ambiguity, and tenant isolation.
-  - [x] Frontend Operations UI (`frontend/web`):
-    - [x] Login page with demo quick-login buttons for Owner, Member, and Viewer roles.
-    - [x] Workspace dashboard layout with sidebar navigation, workspace switcher, and role indicator.
-    - [x] Products catalog page with create product dialog, status badges, and activation toggles.
-    - [x] Product detail page with route management table, add route modal dialog, and live ambiguity error feedback.
-    - [x] Audit logs page displaying immutable audit entries.
-    - [x] Vitest component tests, TypeScript type checks, and Next.js production build passing with 0 errors.
-  - [x] Full Docker Compose stack running with all 8 containers healthy.
+  - [x] Frontend Operations UI (`frontend/web`) with Login, Products, and Audit Logs pages.
+- [x] Milestone M2 — Consumers, Credentials, Plans, Subscriptions, Redis Projections complete:
+  - [x] Flyway migrations `V3__m2_consumers_credentials_plans_subscriptions.sql` and `V4__seed_m2_demo_data.sql` adding `consumers`, `consumer_applications`, `api_credentials`, `plans`, `limit_policies` (with checks for rate vs quota fields), `subscriptions` (with partial unique active index).
+  - [x] Seeded demo consumer `Northstar Labs`, application `Northstar Demo App`, `Free Tier` plan with token bucket rate policy (5 capacity / 5 tokens / 10s) and fixed-window quota policy (100 units / day), seeded dev credential (`nsdemo123456`), and active subscription.
+  - [x] API Key generation using 256-bit `SecureRandom` entropy and HMAC-SHA256 server pepper hashing. Raw API keys are returned strictly once on creation/rotation and never stored in database or logs.
+  - [x] Control-plane REST APIs and domain services for Consumers, Applications, Credentials (issue, rotate, revoke), Plans, Limit Policies, and Subscriptions.
+  - [x] Worker Transactional Outbox poller (`OutboxPollerService`) polling `meterforge.outbox_events` and publishing versioned `ConfigEventEnvelope` to Kafka `meterforge.config.v1`.
+  - [x] Worker Redis Projection consumer (`ConfigProjectionConsumer`) projecting configuration snapshots (`rf:v1:cfg:credential:<publicId>`, `rf:v1:cfg:product:<productId>`, `rf:v1:cfg:subscription:<subscriptionId>`) guarded by version key `rf:v1:cfg:version:<aggregateType>:<aggregateId>`.
+  - [x] Testcontainers integration tests covering full consumer/app lifecycle, credential issuance/rotation/revocation with HMAC verification, plan/subscription configuration, and worker outbox-to-Redis projection flow with version guard.
+  - [x] Frontend Operations UI for Consumers (`/[workspaceSlug]/consumers`), Consumer details with one-time raw key reveal dialog (`/[workspaceSlug]/consumers/[consumerId]`), Plans & Limit Policies (`/[workspaceSlug]/plans`), and Subscriptions (`/[workspaceSlug]/subscriptions`).
+  - [x] Vitest tests, TypeScript validation (`tsc --noEmit`), and Next.js production build passing with 0 errors.
 
 ### In progress
 
-- [ ] Milestone M2 planning & design (Consumers, Apps, Keys, Plans, Subscriptions).
+- [ ] Milestone M3 planning & design (Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, Request Lab).
 
 ### Next
 
-- [ ] Begin M2 — Consumers, Applications, Credentials, Plans, and Subscriptions.
+- [ ] Begin Milestone M3 — Gateway Core, Atomic Redis Lua Limiter, Upstream Proxying, and Request Lab.
 
 ### Known limitations
 
-- Redis projection and gateway routing will be activated in M2/M3 as the worker outbox poller and gateway config consumer are attached.
 - Local Redis uses AOF persistence; counter recovery is documented honestly.
 - Availability-first Kafka metering can lose events during prolonged outage + process crash.
 

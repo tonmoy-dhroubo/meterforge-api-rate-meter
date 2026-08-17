@@ -34,7 +34,6 @@ export function Sidebar() {
       icon: Users,
       active: pathname.startsWith(`/${workspaceSlug}/consumers`),
       badge: "M2",
-      disabled: true,
     },
     {
       title: "Plans & Policies",
@@ -42,7 +41,6 @@ export function Sidebar() {
       icon: FileSpreadsheet,
       active: pathname.startsWith(`/${workspaceSlug}/plans`),
       badge: "M2",
-      disabled: true,
     },
     {
       title: "Subscriptions",
@@ -50,7 +48,6 @@ export function Sidebar() {
       icon: KeyRound,
       active: pathname.startsWith(`/${workspaceSlug}/subscriptions`),
       badge: "M2",
-      disabled: true,
     },
     {
       title: "Request Lab",
