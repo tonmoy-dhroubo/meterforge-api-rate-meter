@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getUsageSummary, UsageSummary } from "@/lib/api/usage";
 import { getProducts } from "@/lib/api/products";
-import { getConsumers } from "@/lib/api/consumers";
+import { fetchConsumers } from "@/lib/api/consumers";
 import { ApiProduct, Consumer } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,7 @@ export default function WorkspaceOverviewPage() {
       try {
         const [prodsRes, consumersRes, summaryRes] = await Promise.all([
           getProducts(workspaceSlug).catch(() => []),
-          getConsumers(workspaceSlug).catch(() => []),
+          fetchConsumers(workspaceSlug).catch(() => []),
           getUsageSummary(workspaceSlug).catch(() => null),
         ]);
         setProducts(prodsRes);

@@ -94,7 +94,7 @@ export async function getUsageSummary(
   if (params?.consumerId) query.set("consumerId", params.consumerId);
 
   const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiClient.get<UsageSummary>(
+  return apiClient<UsageSummary>(
     `/api/v1/workspaces/${workspaceSlug}/usage/summary${qs}`
   );
 }
@@ -111,7 +111,7 @@ export async function getUsageTimeseries(
   if (params?.consumerId) query.set("consumerId", params.consumerId);
 
   const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiClient.get<UsageTimeseries>(
+  return apiClient<UsageTimeseries>(
     `/api/v1/workspaces/${workspaceSlug}/usage/timeseries${qs}`
   );
 }
@@ -126,7 +126,7 @@ export async function getTopRoutes(
   if (params?.limit) query.set("limit", String(params.limit));
 
   const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiClient.get<TopRoute[]>(
+  return apiClient<TopRoute[]>(
     `/api/v1/workspaces/${workspaceSlug}/usage/top-routes${qs}`
   );
 }
@@ -141,7 +141,7 @@ export async function getTopApplications(
   if (params?.limit) query.set("limit", String(params.limit));
 
   const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiClient.get<TopApplication[]>(
+  return apiClient<TopApplication[]>(
     `/api/v1/workspaces/${workspaceSlug}/usage/top-applications${qs}`
   );
 }
@@ -160,7 +160,7 @@ export async function getRawUsageEvents(
   if (params?.offset !== undefined) query.set("offset", String(params.offset));
 
   const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiClient.get<RawUsageEventsPage>(
+  return apiClient<RawUsageEventsPage>(
     `/api/v1/workspaces/${workspaceSlug}/usage/events${qs}`
   );
 }
@@ -169,7 +169,7 @@ export async function getUsageEventById(
   workspaceSlug: string,
   eventId: string
 ): Promise<RawUsageEvent> {
-  return apiClient.get<RawUsageEvent>(
+  return apiClient<RawUsageEvent>(
     `/api/v1/workspaces/${workspaceSlug}/usage/events/${eventId}`
   );
 }

@@ -82,20 +82,7 @@ export function Sidebar() {
           <nav className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              return item.disabled ? (
-                <div
-                  key={item.title}
-                  className="flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted-foreground/50 cursor-not-allowed"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </div>
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
-                    {item.badge}
-                  </span>
-                </div>
-              ) : (
+              return (
                 <Link
                   key={item.title}
                   href={item.href}
