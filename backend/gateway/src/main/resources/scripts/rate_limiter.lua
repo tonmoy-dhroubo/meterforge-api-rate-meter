@@ -92,10 +92,19 @@ for i = 1, num_policies do
                 limiting_policy_id = policy_id
             end
             local key_ttl = redis.call('TTL', key)
-            if key_ttl > 0 and key_ttl > reset_after_sec then
-                reset_after_sec = key_ttl
-            elseif window_ttl_sec > reset_after_sec then
-                reset_after_sec = window_ttl_sec
+            local q_wait = 0
+            if key_ttl > 0 then
+                q_wait = key_ttl
+            elseif window_ttl_sec > 0 then
+                q_wait = window_ttl_sec
+            else
+                q_wait = 1
+            end
+            if q_wait > reset_after_sec then
+                reset_after_sec = q_wait
+            end
+            if q_wait > retry_after_sec then
+                retry_after_sec = q_wait
             end
             min_remaining = 0
         else

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth-context";
 import {
   getUsageSummary,
   getUsageTimeseries,
@@ -9,10 +10,11 @@ import {
   getTopApplications,
   getRawUsageEvents,
   UsageSummary,
-  TimeseriesBucket,
+  UsageTimeseries,
   TopRoute,
   TopApplication,
   RawUsageEvent,
+  RawUsageEventsPage,
 } from "@/lib/api/usage";
 import { getProducts } from "@/lib/api/products";
 import { ApiProduct } from "@/lib/api/types";
@@ -26,7 +28,6 @@ import {
   Zap,
   RefreshCw,
   Code2,
-  ArrowRight,
   TrendingUp,
   Layers,
   ChevronLeft,
@@ -34,102 +35,118 @@ import {
 } from "lucide-react";
 
 export default function UsagePage() {
-  const params = useParams();
-  const workspaceSlug = (params?.workspaceSlug as string) || "acme-apis";
+  const { currentMembership } = useAuth();
+  const workspaceId = currentMembership?.workspaceId;
 
   // Filter state
   const [timeRange, setTimeRange] = useState<"1h" | "24h" | "7d" | "30d">("24h");
-  const [products, setProducts] = useState<ApiProduct[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [decisionFilter, setDecisionFilter] = useState<string>("");
-
-  // Data state
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [timeseries, setTimeseries] = useState<TimeseriesBucket[]>([]);
-  const [topRoutes, setTopRoutes] = useState<TopRoute[]>([]);
-  const [topApps, setTopApps] = useState<TopApplication[]>([]);
-  const [rawEvents, setRawEvents] = useState<RawUsageEvent[]>([]);
-  const [totalEvents, setTotalEvents] = useState<number>(0);
   const [page, setPage] = useState<number>(0);
   const [selectedEvent, setSelectedEvent] = useState<RawUsageEvent | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Load products list for filter dropdown
-  useEffect(() => {
-    async function loadCatalog() {
-      try {
-        const prods = await getProducts(workspaceSlug);
-        setProducts(prods);
-      } catch (err) {
-        console.error("Failed to load products for filter", err);
-      }
-    }
-    loadCatalog();
-  }, [workspaceSlug]);
+  // Derive time range filter params
+  const now = new Date();
+  let fromDate = new Date();
+  let granularity: "HOUR" | "DAY" = "HOUR";
 
-  // Fetch telemetry data based on active filters
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const now = new Date();
-      let fromDate = new Date();
-      let granularity: "HOUR" | "DAY" = "HOUR";
+  if (timeRange === "1h") {
+    fromDate = new Date(now.getTime() - 60 * 60 * 1000);
+  } else if (timeRange === "24h") {
+    fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  } else if (timeRange === "7d") {
+    fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    granularity = "DAY";
+  } else if (timeRange === "30d") {
+    fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    granularity = "DAY";
+  }
 
-      if (timeRange === "1h") {
-        fromDate = new Date(now.getTime() - 60 * 60 * 1000);
-      } else if (timeRange === "24h") {
-        fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      } else if (timeRange === "7d") {
-        fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        granularity = "DAY";
-      } else if (timeRange === "30d") {
-        fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        granularity = "DAY";
-      }
+  const filterParams = {
+    from: fromDate.toISOString(),
+    to: now.toISOString(),
+    productId: selectedProductId || undefined,
+    granularity,
+  };
 
-      const fromIso = fromDate.toISOString();
-      const toIso = now.toISOString();
+  // Queries
+  const { data: products = [] } = useQuery<ApiProduct[]>({
+    queryKey: ["products", workspaceId],
+    queryFn: () => (workspaceId ? getProducts(workspaceId) : Promise.resolve([])),
+    enabled: !!workspaceId,
+  });
 
-      const filterParams = {
-        from: fromIso,
-        to: toIso,
-        productId: selectedProductId || undefined,
-        granularity,
-      };
+  const {
+    data: summary = null,
+    isLoading: isSummaryLoading,
+    refetch: refetchSummary,
+  } = useQuery<UsageSummary | null>({
+    queryKey: ["usage-summary", workspaceId, timeRange, selectedProductId],
+    queryFn: () => (workspaceId ? getUsageSummary(workspaceId, filterParams) : Promise.resolve(null)),
+    enabled: !!workspaceId,
+  });
 
-      const [summaryRes, tsRes, routesRes, appsRes, eventsRes] = await Promise.all([
-        getUsageSummary(workspaceSlug, filterParams),
-        getUsageTimeseries(workspaceSlug, filterParams),
-        getTopRoutes(workspaceSlug, filterParams),
-        getTopApplications(workspaceSlug, filterParams),
-        getRawUsageEvents(workspaceSlug, {
-          ...filterParams,
-          decision: decisionFilter || undefined,
-          limit: 20,
-          offset: page * 20,
-        }),
-      ]);
+  const { data: timeseriesData, refetch: refetchTimeseries } = useQuery<UsageTimeseries>({
+    queryKey: ["usage-timeseries", workspaceId, timeRange, selectedProductId],
+    queryFn: () =>
+      workspaceId
+        ? getUsageTimeseries(workspaceId, filterParams)
+        : Promise.resolve({
+            granularity,
+            from: filterParams.from,
+            to: filterParams.to,
+            buckets: [],
+          }),
+    enabled: !!workspaceId,
+  });
 
-      setSummary(summaryRes);
-      setTimeseries(tsRes.buckets || []);
-      setTopRoutes(routesRes || []);
-      setTopApps(appsRes || []);
-      setRawEvents(eventsRes.items || []);
-      setTotalEvents(eventsRes.total || 0);
-    } catch (err) {
-      console.error("Failed to fetch usage telemetry", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaceSlug, timeRange, selectedProductId, decisionFilter, page]);
+  const { data: topRoutes = [], refetch: refetchRoutes } = useQuery<TopRoute[]>({
+    queryKey: ["usage-top-routes", workspaceId, timeRange, selectedProductId],
+    queryFn: () => (workspaceId ? getTopRoutes(workspaceId, filterParams) : Promise.resolve([])),
+    enabled: !!workspaceId,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { data: topApps = [], refetch: refetchApps } = useQuery<TopApplication[]>({
+    queryKey: ["usage-top-apps", workspaceId, timeRange, selectedProductId],
+    queryFn: () => (workspaceId ? getTopApplications(workspaceId, filterParams) : Promise.resolve([])),
+    enabled: !!workspaceId,
+  });
 
-  const maxBucketRequests = timeseries.length > 0
-    ? Math.max(...timeseries.map((b) => b.totalRequests), 1)
-    : 1;
+  const {
+    data: eventsData,
+    isLoading: isEventsLoading,
+    refetch: refetchEvents,
+  } = useQuery<RawUsageEventsPage>({
+    queryKey: ["usage-events", workspaceId, timeRange, selectedProductId, decisionFilter, page],
+    queryFn: () =>
+      workspaceId
+        ? getRawUsageEvents(workspaceId, {
+            ...filterParams,
+            decision: decisionFilter || undefined,
+            limit: 20,
+            offset: page * 20,
+          })
+        : Promise.resolve({ total: 0, items: [], limit: 20, offset: 0 }),
+    enabled: !!workspaceId,
+  });
+
+  const timeseries = timeseriesData?.buckets || [];
+  const rawEvents = eventsData?.items || [];
+  const totalEvents = eventsData?.total || 0;
+  const isLoading = isSummaryLoading || isEventsLoading;
+
+  const handleRefresh = () => {
+    refetchSummary();
+    refetchTimeseries();
+    refetchRoutes();
+    refetchApps();
+    refetchEvents();
+  };
+
+  const maxBucketRequests =
+    timeseries.length > 0
+      ? Math.max(...timeseries.map((b) => b.totalRequests), 1)
+      : 1;
 
   return (
     <div className="space-y-8 p-6 max-w-7xl mx-auto">
@@ -175,7 +192,7 @@ export default function UsagePage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => fetchData()}
+            onClick={() => handleRefresh()}
             disabled={isLoading}
             className="text-xs"
           >

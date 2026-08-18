@@ -54,16 +54,16 @@ public class UsageIngestionService {
                 event.consumerApplicationId(),
                 event.credentialId(),
                 event.subscriptionId(),
-                event.requestId(),
-                event.method(),
-                event.routeTemplate(),
-                event.decision() != null ? event.decision().name() : "ALLOWED",
-                event.outcome() != null ? event.outcome().name() : "SUCCESS",
+                truncate(event.requestId(), 64),
+                truncate(event.method(), 16),
+                truncate(event.routeTemplate(), 255),
+                truncate(event.decision() != null ? event.decision().name() : "ALLOWED", 32),
+                truncate(event.outcome() != null ? event.outcome().name() : "SUCCESS", 32),
                 event.statusCode(),
                 event.usageUnits(),
                 event.latencyMs(),
                 event.limitingPolicyId(),
-                event.gatewayInstanceId()
+                truncate(event.gatewayInstanceId(), 64)
         );
 
         if (rowsInserted == 0) {
@@ -162,5 +162,11 @@ public class UsageIngestionService {
         if (statusCode >= 400 && statusCode < 500) return "4xx";
         if (statusCode >= 500 && statusCode < 600) return "5xx";
         return "ERR";
+    }
+
+    private String truncate(String val, int maxLength) {
+        if (val == null) return null;
+        if (val.length() <= maxLength) return val;
+        return val.substring(0, maxLength);
     }
 }

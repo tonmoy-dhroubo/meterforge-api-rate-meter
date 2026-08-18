@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { getProducts } from "@/lib/api/products";
@@ -12,7 +11,7 @@ import { ApiProduct, Plan, Consumer, ConsumerApplication, Subscription } from "@
 import { ApiError } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Alert } from "@/components/ui/alert";
 import {
@@ -27,8 +26,6 @@ import {
 } from "lucide-react";
 
 export default function SubscriptionsPage() {
-  const params = useParams();
-  const workspaceSlug = (params?.workspaceSlug as string) || "acme-apis";
   const { currentMembership, currentRole } = useAuth();
   const workspaceId = currentMembership?.workspaceId;
   const queryClient = useQueryClient();

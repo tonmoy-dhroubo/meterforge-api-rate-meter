@@ -61,7 +61,7 @@ public class ConsumerApplicationService {
         }
 
         ConsumerApplication app = new ConsumerApplication(null, workspaceId, consumerId, trimmedName);
-        app = applicationRepository.save(app);
+        app = applicationRepository.saveAndFlush(app);
 
         ApplicationConfigurationChangedV1 payload = new ApplicationConfigurationChangedV1(
                 app.getId(),
@@ -101,7 +101,7 @@ public class ConsumerApplicationService {
     public ConsumerApplication updateApplication(UUID workspaceId, UUID userId, UUID applicationId, String name) {
         ConsumerApplication app = getApplication(workspaceId, applicationId);
         app.update(name);
-        app = applicationRepository.save(app);
+        app = applicationRepository.saveAndFlush(app);
 
         ApplicationConfigurationChangedV1 payload = new ApplicationConfigurationChangedV1(
                 app.getId(),
@@ -141,7 +141,7 @@ public class ConsumerApplicationService {
     public ConsumerApplication activateApplication(UUID workspaceId, UUID userId, UUID applicationId) {
         ConsumerApplication app = getApplication(workspaceId, applicationId);
         app.setStatus(ResourceStatus.ACTIVE);
-        app = applicationRepository.save(app);
+        app = applicationRepository.saveAndFlush(app);
 
         ApplicationConfigurationChangedV1 payload = new ApplicationConfigurationChangedV1(
                 app.getId(),
@@ -181,7 +181,7 @@ public class ConsumerApplicationService {
     public ConsumerApplication disableApplication(UUID workspaceId, UUID userId, UUID applicationId) {
         ConsumerApplication app = getApplication(workspaceId, applicationId);
         app.setStatus(ResourceStatus.DISABLED);
-        app = applicationRepository.save(app);
+        app = applicationRepository.saveAndFlush(app);
 
         ApplicationConfigurationChangedV1 payload = new ApplicationConfigurationChangedV1(
                 app.getId(),

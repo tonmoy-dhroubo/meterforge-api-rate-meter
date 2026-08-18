@@ -62,4 +62,14 @@ class ApiKeyHmacConsistencyTests {
         String otherHmac = otherGenerator.computeHmac(generated.fullKey());
         assertThat(otherHmac).isNotEqualTo(generated.secretHmac());
     }
+
+    @Test
+    @DisplayName("Seeded demo key HMAC matches V4 migration and unified default pepper")
+    void testSeededDemoKeyMatchesDefaultPepper() {
+        ApiKeyGenerator defaultGenerator = new ApiKeyGenerator("dev-secret-pepper-change-in-production-12345678");
+        String demoKey = "mf_dev_nsdemo123456_seedednorthstardemosecretkey9999";
+        String expectedHmac = "53a6a7444edad27f3b2165d6e2b7275ea954dc86b6d41884b3df2adab0bad695";
+
+        assertThat(defaultGenerator.computeHmac(demoKey)).isEqualTo(expectedHmac);
+    }
 }

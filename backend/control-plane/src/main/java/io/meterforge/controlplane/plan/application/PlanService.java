@@ -14,9 +14,11 @@ import io.meterforge.controlplane.plan.domain.LimitPolicyRepository;
 import io.meterforge.controlplane.plan.domain.Plan;
 import io.meterforge.controlplane.plan.domain.PlanRepository;
 import io.meterforge.controlplane.product.domain.ApiProductRepository;
+import io.meterforge.controlplane.product.domain.ApiRouteRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,15 +30,18 @@ public class PlanService {
     private final PlanRepository planRepository;
     private final LimitPolicyRepository policyRepository;
     private final ApiProductRepository productRepository;
+    private final ApiRouteRepository routeRepository;
     private final TransactionalMutationService mutationService;
 
     public PlanService(PlanRepository planRepository,
                        LimitPolicyRepository policyRepository,
                        ApiProductRepository productRepository,
+                       ApiRouteRepository routeRepository,
                        TransactionalMutationService mutationService) {
         this.planRepository = planRepository;
         this.policyRepository = policyRepository;
         this.productRepository = productRepository;
+        this.routeRepository = routeRepository;
         this.mutationService = mutationService;
     }
 
@@ -61,22 +66,25 @@ public class PlanService {
     }
 
     @Transactional
-    public Plan createPlan(UUID workspaceId, UUID userId, UUID productId, String name, String slug, List<LimitPolicy> initialPolicies) {
+    public Plan createPlan(UUID workspaceId, UUID userId, UUID productId, String name, String slug, List<LimitPolicy> policies) {
         productRepository.findByIdAndWorkspaceId(productId, workspaceId)
-                .orElseThrow(() -> new ResourceNotFoundException("ApiProduct", productId));
+                .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
 
-        String trimmedSlug = slug.trim().toLowerCase();
-        if (planRepository.existsByProductIdAndSlug(productId, trimmedSlug)) {
-            throw new ResourceConflictException("A plan with slug '" + trimmedSlug + "' already exists for this product.");
+        if (planRepository.existsByWorkspaceIdAndProductIdAndSlug(workspaceId, productId, slug)) {
+            throw new ResourceConflictException("Plan with slug '" + slug + "' already exists for this product");
         }
 
-        Plan plan = new Plan(null, workspaceId, productId, name.trim(), trimmedSlug);
-        plan = planRepository.save(plan);
+        Plan plan = new Plan(null, workspaceId, productId, name.trim(), slug.trim().toLowerCase());
+        plan = planRepository.saveAndFlush(plan);
 
         List<LimitPolicy> savedPolicies = new ArrayList<>();
-        if (initialPolicies != null) {
-            for (LimitPolicy policy : initialPolicies) {
+        if (policies != null) {
+            for (LimitPolicy policy : policies) {
                 validatePolicy(policy);
+                if (policy.getRouteId() != null) {
+                    routeRepository.findByIdAndWorkspaceIdAndProductId(policy.getRouteId(), workspaceId, productId)
+                            .orElseThrow(() -> new InvalidInputException("Route does not belong to the plan's product"));
+                }
                 LimitPolicy toSave;
                 if (policy.getKind() == LimitPolicyKind.RATE) {
                     toSave = LimitPolicy.createRatePolicy(
@@ -89,7 +97,7 @@ public class PlanService {
                             policy.getQuotaLimit(), policy.getQuotaPeriod()
                     );
                 }
-                savedPolicies.add(policyRepository.save(toSave));
+                savedPolicies.add(policyRepository.saveAndFlush(toSave));
             }
         }
 
@@ -101,6 +109,11 @@ public class PlanService {
     public LimitPolicy addPolicyToPlan(UUID workspaceId, UUID userId, UUID planId, LimitPolicy policy) {
         Plan plan = getPlan(workspaceId, planId);
         validatePolicy(policy);
+
+        if (policy.getRouteId() != null) {
+            routeRepository.findByIdAndWorkspaceIdAndProductId(policy.getRouteId(), workspaceId, plan.getProductId())
+                    .orElseThrow(() -> new InvalidInputException("Route does not belong to the plan's product"));
+        }
 
         LimitPolicy toSave;
         if (policy.getKind() == LimitPolicyKind.RATE) {
@@ -114,7 +127,10 @@ public class PlanService {
                     policy.getQuotaLimit(), policy.getQuotaPeriod()
                     );
         }
-        LimitPolicy saved = policyRepository.save(toSave);
+        LimitPolicy saved = policyRepository.saveAndFlush(toSave);
+
+        plan.markUpdated();
+        plan = planRepository.saveAndFlush(plan);
 
         List<LimitPolicy> allPolicies = policyRepository.findByWorkspaceIdAndPlanIdOrderByCreatedAtAsc(workspaceId, planId);
         emitPlanChangedEvent(plan, allPolicies, userId, "ADD_LIMIT_POLICY", "Added limit policy to plan '" + plan.getName() + "'");
@@ -128,8 +144,15 @@ public class PlanService {
         LimitPolicy policy = policyRepository.findByIdAndWorkspaceId(policyId, workspaceId)
                 .orElseThrow(() -> new ResourceNotFoundException("LimitPolicy", policyId));
 
+        if (!planId.equals(policy.getPlanId())) {
+            throw new ResourceNotFoundException("LimitPolicy with ID " + policyId + " does not belong to Plan " + planId);
+        }
+
         policy.setEnabled(enabled);
-        LimitPolicy saved = policyRepository.save(policy);
+        LimitPolicy saved = policyRepository.saveAndFlush(policy);
+
+        plan.markUpdated();
+        plan = planRepository.saveAndFlush(plan);
 
         List<LimitPolicy> allPolicies = policyRepository.findByWorkspaceIdAndPlanIdOrderByCreatedAtAsc(workspaceId, planId);
         emitPlanChangedEvent(plan, allPolicies, userId, "TOGGLE_LIMIT_POLICY", "Updated policy status on plan '" + plan.getName() + "'");
@@ -141,7 +164,7 @@ public class PlanService {
     public Plan activatePlan(UUID workspaceId, UUID userId, UUID planId) {
         Plan plan = getPlan(workspaceId, planId);
         plan.setStatus(ResourceStatus.ACTIVE);
-        plan = planRepository.save(plan);
+        plan = planRepository.saveAndFlush(plan);
 
         List<LimitPolicy> allPolicies = policyRepository.findByWorkspaceIdAndPlanIdOrderByCreatedAtAsc(workspaceId, planId);
         emitPlanChangedEvent(plan, allPolicies, userId, "ACTIVATE_PLAN", "Activated plan '" + plan.getName() + "'");
@@ -153,7 +176,7 @@ public class PlanService {
     public Plan disablePlan(UUID workspaceId, UUID userId, UUID planId) {
         Plan plan = getPlan(workspaceId, planId);
         plan.setStatus(ResourceStatus.DISABLED);
-        plan = planRepository.save(plan);
+        plan = planRepository.saveAndFlush(plan);
 
         List<LimitPolicy> allPolicies = policyRepository.findByWorkspaceIdAndPlanIdOrderByCreatedAtAsc(workspaceId, planId);
         emitPlanChangedEvent(plan, allPolicies, userId, "DISABLE_PLAN", "Disabled plan '" + plan.getName() + "'");

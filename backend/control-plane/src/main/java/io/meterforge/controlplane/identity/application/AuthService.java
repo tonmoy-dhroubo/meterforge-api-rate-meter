@@ -5,6 +5,7 @@ import io.meterforge.controlplane.common.exception.UnauthorizedException;
 import io.meterforge.controlplane.identity.api.dto.AuthResponse;
 import io.meterforge.controlplane.identity.api.dto.LoginRequest;
 import io.meterforge.controlplane.identity.api.dto.UserProfileResponse;
+import io.meterforge.controlplane.identity.api.dto.UserSummaryDto;
 import io.meterforge.controlplane.identity.api.dto.UserWorkspaceDto;
 import io.meterforge.controlplane.identity.domain.User;
 import io.meterforge.controlplane.identity.domain.UserRepository;
@@ -57,7 +58,7 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request, HttpServletResponse response) {
+    public UserProfileResponse login(LoginRequest request, HttpServletResponse response) {
         String email = request.email().trim().toLowerCase();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
@@ -81,8 +82,7 @@ public class AuthService {
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        UserProfileResponse profile = getUserProfile(user);
-        return new AuthResponse(profile, token);
+        return getUserProfile(user);
     }
 
     public void logout(HttpServletResponse response) {
@@ -124,9 +124,7 @@ public class AuthService {
         }
 
         return new UserProfileResponse(
-                user.getId(),
-                user.getEmail(),
-                user.getStatus(),
+                new UserSummaryDto(user.getId(), user.getEmail(), user.getStatus()),
                 workspaces
         );
     }

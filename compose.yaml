@@ -79,6 +79,8 @@ services:
       DB_USERNAME: meterforge
       DB_PASSWORD: meterforge
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      API_KEY_PEPPER: ${API_KEY_PEPPER:-dev-secret-pepper-change-in-production-12345678}
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-random-secret-at-least-32-chars}
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,6 +103,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      API_KEY_PEPPER: ${API_KEY_PEPPER:-dev-secret-pepper-change-in-production-12345678}
     depends_on:
       redis:
         condition: service_healthy
@@ -149,8 +152,9 @@ services:
     ports:
       - "${WEB_PORT:-3001}:3000"
     environment:
+      CONTROL_PLANE_URL: http://control-plane:8080
       NEXT_PUBLIC_API_URL: http://control-plane:8080
-      NEXT_PUBLIC_GATEWAY_URL: http://gateway:8090
+      NEXT_PUBLIC_GATEWAY_URL: http://localhost:${GATEWAY_PORT:-8890}
     depends_on:
       control-plane:
         condition: service_healthy

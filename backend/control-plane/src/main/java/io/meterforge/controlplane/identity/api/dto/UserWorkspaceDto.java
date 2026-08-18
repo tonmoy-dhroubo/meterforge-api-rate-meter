@@ -4,8 +4,9 @@ import io.meterforge.contracts.common.Role;
 import java.util.UUID;
 
 public record UserWorkspaceDto(
-        UUID id,
-        String name,
-        String slug,
+        UUID workspaceId,
+        String workspaceName,
+        String workspaceSlug,
         Role role
 ) {}
+

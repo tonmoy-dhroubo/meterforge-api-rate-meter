@@ -66,7 +66,7 @@ public class CredentialService {
                 generated.environment(),
                 expiresAt
         );
-        credential = credentialRepository.save(credential);
+        credential = credentialRepository.saveAndFlush(credential);
 
         CredentialConfigurationChangedV1 payload = new CredentialConfigurationChangedV1(
                 credential.getId(),
@@ -116,7 +116,7 @@ public class CredentialService {
                 .orElse(null);
         UUID consumerId = app != null ? app.getConsumerId() : null;
         credential.revoke();
-        credential = credentialRepository.save(credential);
+        credential = credentialRepository.saveAndFlush(credential);
 
         CredentialConfigurationChangedV1 payload = new CredentialConfigurationChangedV1(
                 credential.getId(),

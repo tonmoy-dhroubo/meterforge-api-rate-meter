@@ -17,3 +17,8 @@ management:
   endpoint:
     health:
       show-details: always
+
+meterforge:
+  gateway:
+    api-key-pepper: ${API_KEY_PEPPER:dev-secret-pepper-change-in-production-12345678}
+

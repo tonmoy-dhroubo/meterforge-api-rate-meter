@@ -32,18 +32,20 @@ export async function createPlan(workspaceId: string, data: CreatePlanPayload): 
   });
 }
 
+export interface AddPolicyPayload {
+  routeId?: string;
+  kind: LimitPolicyKind;
+  capacity?: number;
+  refillTokens?: number;
+  refillPeriodSeconds?: number;
+  quotaLimit?: number;
+  quotaPeriod?: QuotaPeriod;
+}
+
 export async function addPolicyToPlan(
   workspaceId: string,
   planId: string,
-  data: {
-    routeId?: string;
-    kind: LimitPolicyKind;
-    capacity?: number;
-    refillTokens?: number;
-    refillPeriodSeconds?: number;
-    quotaLimit?: number;
-    quotaPeriod?: QuotaPeriod;
-  }
+  data: AddPolicyPayload
 ): Promise<LimitPolicy> {
   return apiClient<LimitPolicy>(`/api/v1/workspaces/${workspaceId}/plans/${planId}/policies`, {
     method: "POST",

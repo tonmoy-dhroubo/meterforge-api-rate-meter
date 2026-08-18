@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useTransition } from "react";
-import { useParams } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 import { getProducts, getRoutes } from "@/lib/api/products";
 import { executeBurstRequests, GatewayResponseResult } from "@/lib/api/gateway";
 import { ApiProduct, ApiRoute } from "@/lib/api/types";
@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 
 export default function RequestLabPage() {
-  const params = useParams();
-  const workspaceSlug = (params?.workspaceSlug as string) || "acme-apis";
+  const { currentMembership } = useAuth();
+  const workspaceId = currentMembership?.workspaceId;
 
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
@@ -41,14 +41,16 @@ export default function RequestLabPage() {
 
   // Load products on mount
   useEffect(() => {
+    if (!workspaceId) return;
+
     async function loadCatalog() {
       try {
-        const prods = await getProducts(workspaceSlug);
+        const prods = await getProducts(workspaceId!);
         setProducts(prods);
         if (prods.length > 0) {
           const firstProd = prods[0];
           setSelectedProductId(firstProd.id);
-          const rts = await getRoutes(workspaceSlug, firstProd.id);
+          const rts = await getRoutes(workspaceId!, firstProd.id);
           setRoutes(rts);
           if (rts.length > 0) {
             setSelectedRouteId(rts[0].id);
@@ -61,13 +63,14 @@ export default function RequestLabPage() {
       }
     }
     loadCatalog();
-  }, [workspaceSlug]);
+  }, [workspaceId]);
 
   // When product changes, load routes
   const handleProductChange = async (prodId: string) => {
     setSelectedProductId(prodId);
+    if (!workspaceId) return;
     try {
-      const rts = await getRoutes(workspaceSlug, prodId);
+      const rts = await getRoutes(workspaceId, prodId);
       setRoutes(rts);
       if (rts.length > 0) {
         setSelectedRouteId(rts[0].id);

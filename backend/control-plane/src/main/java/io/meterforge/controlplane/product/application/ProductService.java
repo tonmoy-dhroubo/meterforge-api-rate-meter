@@ -82,7 +82,7 @@ public class ProductService {
                 basePath,
                 ResourceStatus.ACTIVE
         );
-        productRepository.save(product);
+        product = productRepository.saveAndFlush(product);
 
         ConfigEventEnvelope<ProductConfigurationChangedV1> outboxEvent = ConfigEventEnvelope.of(
                 workspaceId,
@@ -132,7 +132,7 @@ public class ProductService {
         }
 
         product.update(request.name(), request.upstreamBaseUrl(), request.gatewayBasePath());
-        productRepository.save(product);
+        product = productRepository.saveAndFlush(product);
 
         ConfigEventEnvelope<ProductConfigurationChangedV1> outboxEvent = ConfigEventEnvelope.of(
                 workspaceId,
@@ -175,7 +175,7 @@ public class ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("API Product not found"));
 
         product.setStatus(status);
-        productRepository.save(product);
+        product = productRepository.saveAndFlush(product);
 
         ConfigEventEnvelope<ProductConfigurationChangedV1> outboxEvent = ConfigEventEnvelope.of(
                 workspaceId,
@@ -211,7 +211,7 @@ public class ProductService {
     }
 
     private ProductResponse mapToResponse(ApiProduct product) {
-        int routeCount = routeRepository.findByWorkspaceIdAndProductIdOrderByPriorityDescCreatedAtAsc(product.getWorkspaceId(), product.getId()).size();
+        int routeCount = routeRepository.countByWorkspaceIdAndProductId(product.getWorkspaceId(), product.getId());
         return new ProductResponse(
                 product.getId(),
                 product.getWorkspaceId(),

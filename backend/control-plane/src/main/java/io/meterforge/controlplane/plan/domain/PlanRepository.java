@@ -17,4 +17,6 @@ public interface PlanRepository extends JpaRepository<Plan, UUID> {
     Optional<Plan> findByIdAndWorkspaceId(UUID id, UUID workspaceId);
 
     boolean existsByProductIdAndSlug(UUID productId, String slug);
+
+    boolean existsByWorkspaceIdAndProductIdAndSlug(UUID workspaceId, UUID productId, String slug);
 }

@@ -76,7 +76,7 @@ public class SubscriptionService {
         }
 
         Subscription subscription = new Subscription(null, workspaceId, applicationId, productId, planId);
-        subscription = subscriptionRepository.save(subscription);
+        subscription = subscriptionRepository.saveAndFlush(subscription);
 
         SubscriptionConfigurationChangedV1 payload = new SubscriptionConfigurationChangedV1(
                 subscription.getId(),
@@ -123,7 +123,7 @@ public class SubscriptionService {
                 .orElse(null);
         UUID consumerId = app != null ? app.getConsumerId() : null;
         subscription.cancel();
-        subscription = subscriptionRepository.save(subscription);
+        subscription = subscriptionRepository.saveAndFlush(subscription);
 
         SubscriptionConfigurationChangedV1 payload = new SubscriptionConfigurationChangedV1(
                 subscription.getId(),

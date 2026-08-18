@@ -49,7 +49,7 @@ class AuthIntegrationTests {
     }
 
     @Test
-    @DisplayName("Login with valid credentials returns 200, JWT token, user profile, and sets HttpOnly cookie")
+    @DisplayName("Login with valid credentials returns 200, user profile, and sets HttpOnly cookie")
     void testValidLogin() throws Exception {
         LoginRequest request = new LoginRequest("owner@meterforge.local", "password123");
 
@@ -59,11 +59,10 @@ class AuthIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists("mf_session"))
                 .andExpect(cookie().httpOnly("mf_session", true))
-                .andExpect(jsonPath("$.token", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.user.email", is("owner@meterforge.local")))
-                .andExpect(jsonPath("$.user.workspaces", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$.user.workspaces[0].slug", is("acme-apis")))
-                .andExpect(jsonPath("$.user.workspaces[0].role", is("OWNER")));
+                .andExpect(jsonPath("$.memberships", hasSize(greaterThanOrEqualTo(1))))
+                .andExpect(jsonPath("$.memberships[0].workspaceSlug", is("acme-apis")))
+                .andExpect(jsonPath("$.memberships[0].role", is("OWNER")));
     }
 
     @Test
@@ -81,7 +80,7 @@ class AuthIntegrationTests {
     }
 
     @Test
-    @DisplayName("Get /api/v1/me with valid Bearer token returns profile")
+    @DisplayName("Get /api/v1/me with valid session cookie returns profile")
     void testGetMeAuthenticated() throws Exception {
         LoginRequest request = new LoginRequest("owner@meterforge.local", "password123");
 
@@ -91,14 +90,13 @@ class AuthIntegrationTests {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        String responseBody = loginResult.getResponse().getContentAsString();
-        String token = objectMapper.readTree(responseBody).get("token").asText();
+        jakarta.servlet.http.Cookie cookie = loginResult.getResponse().getCookie("mf_session");
 
         mockMvc.perform(get("/api/v1/me")
-                        .header("Authorization", "Bearer " + token))
+                        .cookie(cookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email", is("owner@meterforge.local")))
-                .andExpect(jsonPath("$.workspaces[0].slug", is("acme-apis")));
+                .andExpect(jsonPath("$.user.email", is("owner@meterforge.local")))
+                .andExpect(jsonPath("$.memberships[0].workspaceSlug", is("acme-apis")));
     }
 
     @Test

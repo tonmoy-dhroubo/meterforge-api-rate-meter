@@ -90,7 +90,7 @@ public class RouteService {
                 priority,
                 ResourceStatus.ACTIVE
         );
-        routeRepository.save(route);
+        route = routeRepository.saveAndFlush(route);
 
         ConfigEventEnvelope<RouteConfigurationChangedV1> outboxEvent = ConfigEventEnvelope.of(
                 workspaceId,
@@ -135,7 +135,7 @@ public class RouteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Route not found"));
 
         route.update(request.upstreamPath(), request.costUnits(), request.priority());
-        routeRepository.save(route);
+        route = routeRepository.saveAndFlush(route);
 
         ConfigEventEnvelope<RouteConfigurationChangedV1> outboxEvent = ConfigEventEnvelope.of(
                 workspaceId,
@@ -180,7 +180,7 @@ public class RouteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Route not found"));
 
         route.setStatus(status);
-        routeRepository.save(route);
+        route = routeRepository.saveAndFlush(route);
 
         ConfigEventEnvelope<RouteConfigurationChangedV1> outboxEvent = ConfigEventEnvelope.of(
                 workspaceId,

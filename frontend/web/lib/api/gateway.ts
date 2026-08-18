@@ -18,7 +18,7 @@ export interface GatewayResponseResult {
   resetSeconds: string | null;
   retryAfter: string | null;
   requestId: string | null;
-  body: any;
+  body: unknown;
   timestamp: string;
   isAllowed: boolean;
   isRateLimited: boolean;
@@ -66,7 +66,7 @@ export async function sendGatewayRequest(
     const retryAfter = res.headers.get("Retry-After");
     const requestId = res.headers.get("X-Request-ID");
 
-    let responseBody: any = null;
+    let responseBody: unknown = null;
     const contentType = res.headers.get("Content-Type") || "";
     if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
       try {
@@ -94,8 +94,9 @@ export async function sendGatewayRequest(
       isRateLimited: statusCode === 429,
       isUnauthorized: statusCode === 401,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const latencyMs = Math.round(performance.now() - startNs);
+    const message = error instanceof Error ? error.message : "Failed to reach gateway";
     return {
       id: crypto.randomUUID(),
       index,
@@ -106,7 +107,7 @@ export async function sendGatewayRequest(
       resetSeconds: null,
       retryAfter: null,
       requestId: null,
-      body: { error: error.message || "Failed to reach gateway" },
+      body: { error: message },
       timestamp,
       isAllowed: false,
       isRateLimited: false,

@@ -36,7 +36,6 @@ import {
   Check,
   RotateCw,
   Trash2,
-  ShieldCheck,
   AlertTriangle,
   Clock,
 } from "lucide-react";

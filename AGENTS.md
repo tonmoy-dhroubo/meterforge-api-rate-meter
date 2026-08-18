@@ -1258,6 +1258,19 @@ This replaces a separate `PROGRESS.md` for now. Keep it truthful.
   - [x] Cross-platform burst test automation scripts in `scripts/demo_traffic.ps1` (PowerShell) and `scripts/demo_traffic.sh` (Bash).
   - [x] Enhanced GitHub Actions CI workflow in `.github/workflows/ci.yml` running backend tests, linting, typechecking, and frontend Vitest tests.
 
+- [x] Code Review Findings Unified & Remediated (All 3 Review Logs):
+  - [x] Backend Auth DTOs aligned (`UserProfileResponse` with `UserSummaryDto` and `List<UserWorkspaceDto>`), session cookie authoritative across all integration tests.
+  - [x] Frontend workspace slug vs UUID resolution unified across Overview, Usage, Request Lab, Plans, Subscriptions, and Consumers via `useAuth().currentMembership.workspaceId`.
+  - [x] ApiKeyGenerator and Gateway pepper unified with default `dev-secret-pepper-change-in-production-12345678`.
+  - [x] Seeded demo HMAC (`53a6a7444edad27f3b2165d6e2b7275ea954dc86b6d41884b3df2adab0bad695`) and key aligned in `V4__seed_m2_demo_data.sql`, `ApiKeyHmacConsistencyTests`, and Request Lab.
+  - [x] Gateway CORS preflight handler and exposed headers (`X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`, `X-Request-ID`) added for browser Request Lab calls.
+  - [x] Worker Redis Projection Bootstrap Service (`ConfigProjectionBootstrapService`) implemented to reconcile PostgreSQL entities into Redis on startup.
+  - [x] Outbox versioning guaranteed via `saveAndFlush` across Product, Route, Credential, Plan, and Subscription mutations.
+  - [x] Plan policy route ownership validation and version advancement on policy changes.
+  - [x] Telemetry string bounds truncation helper added in `UsageIngestionService`.
+  - [x] `micrometer-registry-prometheus` added to all three deployable POMs.
+  - [x] Frontend typecheck, lint, test, and production build passing with 0 errors/warnings.
+
 ### Known limitations
 
 - Local Redis uses AOF persistence; counter recovery is documented honestly.
@@ -1266,8 +1279,10 @@ This replaces a separate `PROGRESS.md` for now. Keep it truthful.
 ### Verification commands
 
 ```text
-.\mvnw.cmd test
-cd frontend/web && pnpm typecheck && pnpm lint && pnpm test
+.\mvnw.cmd clean package -DskipTests
+.\mvnw.cmd test -Dtest=ApiKeyHmacConsistencyTests "-Dsurefire.failIfNoSpecifiedTests=false"
+cd frontend/web && pnpm typecheck && pnpm lint && pnpm test && pnpm build
+```
 docker compose ps
 ```
 

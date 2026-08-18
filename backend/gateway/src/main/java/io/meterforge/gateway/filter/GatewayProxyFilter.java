@@ -89,6 +89,19 @@ public class GatewayProxyFilter implements WebFilter {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().pathWithinApplication().value();
 
+        // Handle CORS preflight for browser tools like Request Lab
+        if (request.getMethod() == HttpMethod.OPTIONS) {
+            ServerHttpResponse response = exchange.getResponse();
+            response.setStatusCode(HttpStatus.OK);
+            HttpHeaders headers = response.getHeaders();
+            headers.set("Access-Control-Allow-Origin", "*");
+            headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+            headers.set("Access-Control-Allow-Headers", "*");
+            headers.set("Access-Control-Expose-Headers", "X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After, X-Request-ID, Content-Type");
+            headers.set("Access-Control-Max-Age", "3600");
+            return response.setComplete();
+        }
+
         // Allow actuator health/metrics endpoints directly
         if (path.startsWith("/actuator")) {
             return chain.filter(exchange);
@@ -101,7 +114,7 @@ public class GatewayProxyFilter implements WebFilter {
         return authenticator.authenticate(request)
                 .switchIfEmpty(Mono.defer(() -> {
                     emitUsage(requestId, null, null, null, null, null, null, null,
-                            request.getMethod().name(), path,
+                            request.getMethod().name(), "<unauthorized>",
                             UsageDecision.UNAUTHORIZED, UsageOutcome.NOT_FORWARDED,
                             HttpStatus.UNAUTHORIZED.value(), 0, 0, null);
                     return sendProblemResponse(exchange, HttpStatus.UNAUTHORIZED,
@@ -118,7 +131,6 @@ public class GatewayProxyFilter implements WebFilter {
             String requestId,
             long startNs) {
 
-        String path = request.getPath().pathWithinApplication().value();
         String method = request.getMethod().name();
 
         // 2. Match Route
@@ -126,7 +138,7 @@ public class GatewayProxyFilter implements WebFilter {
                 .switchIfEmpty(Mono.defer(() -> {
                     emitUsage(requestId, credential.workspaceId(), null, null, credential.consumerId(),
                             credential.applicationId(), credential.credentialId(), null,
-                            method, path,
+                            method, "<unmatched>",
                             UsageDecision.NOT_FOUND, UsageOutcome.NOT_FORWARDED,
                             HttpStatus.NOT_FOUND.value(), 0, 0, null);
                     return sendProblemResponse(exchange, HttpStatus.NOT_FOUND,
@@ -300,6 +312,8 @@ public class GatewayProxyFilter implements WebFilter {
                 outgoing.put(name, values);
             }
         });
+        outgoing.set("Access-Control-Allow-Origin", "*");
+        outgoing.set("Access-Control-Expose-Headers", "X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After, X-Request-ID, Content-Type");
     }
 
     private Mono<Void> sendProblemResponse(
@@ -314,6 +328,8 @@ public class GatewayProxyFilter implements WebFilter {
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
         response.getHeaders().set("X-Request-ID", requestId);
+        response.getHeaders().set("Access-Control-Allow-Origin", "*");
+        response.getHeaders().set("Access-Control-Expose-Headers", "X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After, X-Request-ID, Content-Type");
 
         Map<String, Object> body = Map.of(
                 "type", "https://meterforge.io/errors/" + code.toLowerCase().replace('_', '-'),

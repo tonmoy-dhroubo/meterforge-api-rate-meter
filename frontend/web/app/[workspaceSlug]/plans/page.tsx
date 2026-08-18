@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { getProducts } from "@/lib/api/products";
@@ -12,6 +11,8 @@ import {
   togglePolicy,
   activatePlan,
   disablePlan,
+  CreatePlanPayload,
+  AddPolicyPayload,
 } from "@/lib/api/plans";
 import { ApiProduct, Plan, LimitPolicyKind, QuotaPeriod } from "@/lib/api/types";
 import { ApiError } from "@/lib/api/client";
@@ -34,8 +35,6 @@ import {
 } from "lucide-react";
 
 export default function PlansPage() {
-  const params = useParams();
-  const workspaceSlug = (params?.workspaceSlug as string) || "acme-apis";
   const { currentMembership, currentRole } = useAuth();
   const workspaceId = currentMembership?.workspaceId;
   const queryClient = useQueryClient();
@@ -84,7 +83,7 @@ export default function PlansPage() {
 
   // Mutations
   const createPlanMutation = useMutation({
-    mutationFn: (data: any) => createPlan(workspaceId!, data),
+    mutationFn: (data: CreatePlanPayload) => createPlan(workspaceId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans", workspaceId] });
       setIsCreatePlanOpen(false);
@@ -102,7 +101,7 @@ export default function PlansPage() {
   });
 
   const addPolicyMutation = useMutation({
-    mutationFn: ({ planId, policy }: { planId: string; policy: any }) =>
+    mutationFn: ({ planId, policy }: { planId: string; policy: AddPolicyPayload }) =>
       addPolicyToPlan(workspaceId!, planId, policy),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans", workspaceId] });
@@ -151,7 +150,7 @@ export default function PlansPage() {
   };
 
   const handleCreatePlan = () => {
-    const policies: any[] = [];
+    const policies: NonNullable<CreatePlanPayload["policies"]> = [];
     if (includeRatePolicy) {
       policies.push({
         kind: "RATE",
@@ -178,15 +177,19 @@ export default function PlansPage() {
 
   const handleAddPolicy = () => {
     if (!activePlanIdForPolicy) return;
-    const policy: any = { kind: newPolicyKind };
-    if (newPolicyKind === "RATE") {
-      policy.capacity = parseInt(newRateCapacity, 10);
-      policy.refillTokens = parseInt(newRateRefillTokens, 10);
-      policy.refillPeriodSeconds = parseInt(newRatePeriodSeconds, 10);
-    } else {
-      policy.quotaLimit = parseInt(newQuotaLimit, 10);
-      policy.quotaPeriod = newQuotaPeriod;
-    }
+    const policy: AddPolicyPayload = {
+      kind: newPolicyKind,
+      ...(newPolicyKind === "RATE"
+        ? {
+            capacity: parseInt(newRateCapacity, 10),
+            refillTokens: parseInt(newRateRefillTokens, 10),
+            refillPeriodSeconds: parseInt(newRatePeriodSeconds, 10),
+          }
+        : {
+            quotaLimit: parseInt(newQuotaLimit, 10),
+            quotaPeriod: newQuotaPeriod,
+          }),
+    };
     addPolicyMutation.mutate({ planId: activePlanIdForPolicy, policy });
   };
 

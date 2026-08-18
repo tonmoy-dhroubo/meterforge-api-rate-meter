@@ -14,4 +14,5 @@ public interface ApiRouteRepository extends JpaRepository<ApiRoute, UUID> {
     Optional<ApiRoute> findByIdAndWorkspaceId(UUID id, UUID workspaceId);
     Optional<ApiRoute> findByIdAndWorkspaceIdAndProductId(UUID id, UUID workspaceId, UUID productId);
     boolean existsByProductIdAndHttpMethodAndPathPattern(UUID productId, String httpMethod, String pathPattern);
+    int countByWorkspaceIdAndProductId(UUID workspaceId, UUID productId);
 }

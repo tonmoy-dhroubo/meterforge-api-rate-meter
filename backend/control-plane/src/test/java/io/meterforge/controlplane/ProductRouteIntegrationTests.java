@@ -72,7 +72,8 @@ class ProductRouteIntegrationTests {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
+
+        return result.getResponse().getCookie("mf_session").getValue();
     }
 
     @Test

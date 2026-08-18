@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 import { getUsageSummary, UsageSummary } from "@/lib/api/usage";
 import { getProducts } from "@/lib/api/products";
 import { fetchConsumers } from "@/lib/api/consumers";
@@ -24,32 +25,32 @@ import {
 export default function WorkspaceOverviewPage() {
   const params = useParams();
   const workspaceSlug = (params?.workspaceSlug as string) || "acme-apis";
+  const { currentMembership } = useAuth();
+  const workspaceId = currentMembership?.workspaceId;
 
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [consumers, setConsumers] = useState<Consumer[]>([]);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    if (!workspaceId) return;
+
     async function loadData() {
-      setIsLoading(true);
       try {
         const [prodsRes, consumersRes, summaryRes] = await Promise.all([
-          getProducts(workspaceSlug).catch(() => []),
-          fetchConsumers(workspaceSlug).catch(() => []),
-          getUsageSummary(workspaceSlug).catch(() => null),
+          getProducts(workspaceId!).catch(() => []),
+          fetchConsumers(workspaceId!).catch(() => []),
+          getUsageSummary(workspaceId!).catch(() => null),
         ]);
         setProducts(prodsRes);
         setConsumers(consumersRes);
         setSummary(summaryRes);
       } catch (err) {
         console.error("Failed to load workspace overview data", err);
-      } finally {
-        setIsLoading(false);
       }
     }
     loadData();
-  }, [workspaceSlug]);
+  }, [workspaceId]);
 
   return (
     <div className="space-y-8 p-6 max-w-7xl mx-auto">

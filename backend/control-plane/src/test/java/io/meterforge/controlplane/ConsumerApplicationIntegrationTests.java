@@ -61,8 +61,7 @@ class ConsumerApplicationIntegrationTests {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        String responseBody = result.getResponse().getContentAsString();
-        return objectMapper.readTree(responseBody).get("token").asText();
+        return result.getResponse().getCookie("mf_session").getValue();
     }
 
     @Test

@@ -40,4 +40,7 @@ meterforge:
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}
     cookie-name: mf_session
     cookie-secure: ${JWT_COOKIE_SECURE:false}
+  api-key:
+    pepper: ${API_KEY_PEPPER:dev-secret-pepper-change-in-production-12345678}
+
 

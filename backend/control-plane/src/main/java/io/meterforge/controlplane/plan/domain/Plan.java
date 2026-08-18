@@ -71,4 +71,8 @@ public class Plan {
         this.status = status;
         this.updatedAt = Instant.now();
     }
+
+    public void markUpdated() {
+        this.updatedAt = Instant.now();
+    }
 }

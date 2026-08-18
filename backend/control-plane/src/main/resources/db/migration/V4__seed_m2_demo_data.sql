@@ -28,7 +28,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Seed demo credential for Northstar Demo App (Public ID: nsdemo123456)
 INSERT INTO meterforge.api_credentials (id, workspace_id, application_id, public_id, secret_hmac, display_prefix, display_last_four, environment, status, expires_at, revoked_at, created_at, updated_at, version)
 VALUES
-    ('99999999-9999-9999-9999-999999999999', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'nsdemo123456', 'a718cf2262ad9b1f7c32bf28b6d8a4369a3cfc5c7ce1a5ba85517173e16b9b39', 'mf_dev_nsdem', '7890', 'dev', 'ACTIVE', null, null, NOW(), NOW(), 1)
+    ('99999999-9999-9999-9999-999999999999', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'nsdemo123456', '53a6a7444edad27f3b2165d6e2b7275ea954dc86b6d41884b3df2adab0bad695', 'mf_dev_nsdem', '9999', 'dev', 'ACTIVE', null, null, NOW(), NOW(), 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- Seed demo subscription linking Northstar Demo App to Weather API Free Tier

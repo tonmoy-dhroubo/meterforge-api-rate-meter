@@ -19,7 +19,7 @@ public class ApiKeyGenerator {
 
     private final String pepper;
 
-    public ApiKeyGenerator(@Value("${meterforge.api-key.pepper:meterforge_default_secret_pepper_value_change_in_prod}") String pepper) {
+    public ApiKeyGenerator(@Value("${meterforge.api-key.pepper:dev-secret-pepper-change-in-production-12345678}") String pepper) {
         this.pepper = pepper;
     }
 
